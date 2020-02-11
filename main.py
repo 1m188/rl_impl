@@ -13,6 +13,9 @@ class Action(Enum):
     RIGHT = (1, 0)
 
 
+# this game means that in 4x4 grid network, the blue ball in the origin point
+# move to the red ball position, if the blue ball catch the black rect, game over.
+# the blue ball will learn how to choose a safe and quick path to red ball
 class Widget(QWidget):
     def __init__(self):
         super().__init__()
@@ -110,6 +113,7 @@ class Widget(QWidget):
         elif newAgentPos in self.negRectPosList:
             reward = -10
         else:
+            # here the reward is bigger if the distance is smaller
             reward = -((newAgentPos[0] - self.posElpPos[0])**2 + (newAgentPos[1] - self.posElpPos[1])**2)**0.5
 
         # update q table
