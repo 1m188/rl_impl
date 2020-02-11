@@ -1,0 +1,8 @@
+# vscode configuration
+.vscode
+
+# python virtualenv
+env
+
+# python generate pyc files
+*.pyc
