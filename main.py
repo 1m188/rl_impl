@@ -31,12 +31,12 @@ class Widget(QWidget):
         self.negRectPosList = ((1, 1), (1, 2), (2, 1))
         self.posElpPos = (2, 2)
 
+        renderTimer = QTimer(self)
+        renderTimer.timeout.connect(self.update)
+        renderTimer.start(15)
+
         # q learning
         self.ql = Q_Learning(0.5, 0.5, 0.01)
-
-        self.renderTimer = QTimer(self)
-        self.renderTimer.timeout.connect(self.update)
-        self.renderTimer.start(15)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.qlRun)
