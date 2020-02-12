@@ -19,9 +19,17 @@ class Action(Enum):
 class Widget(QWidget):
     def __init__(self):
         super().__init__()
+        self.initData()
+        self.initUI()
+
+    def initUI(self):
         self.setWindowTitle("RL")
         self.resize(400, 400)
+        renderTimer = QTimer(self)
+        renderTimer.timeout.connect(self.update)
+        renderTimer.start(15)
 
+    def initData(self):
         # pos limit
         self.posWidth = 4
         self.posHeight = 4
@@ -30,10 +38,6 @@ class Widget(QWidget):
         self.agentPos = (0, 0)  # init state
         self.negRectPosList = ((1, 1), (1, 2), (2, 1))
         self.posElpPos = (2, 2)
-
-        renderTimer = QTimer(self)
-        renderTimer.timeout.connect(self.update)
-        renderTimer.start(15)
 
         # q learning
         self.ql = Q_Learning(0.5, 0.5, 0.01)
