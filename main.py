@@ -1,6 +1,6 @@
 import sys
 from enum import Enum
-from PySide2.QtWidgets import QApplication, QWidget
+from PySide2.QtWidgets import QApplication, QWidget, QMenu, QAction
 from PySide2.QtGui import QPainter
 from PySide2.QtCore import Qt, QRectF, QTimer
 from q_learning import Q_Learning
@@ -23,8 +23,25 @@ class Widget(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("RL")
+        self.setWindowTitle("FindBall")
         self.resize(400, 400)
+
+        # mouse right click menu
+        self.rightClickMenu = QMenu(self)
+        self.rightClickMenu.show()
+
+        stopAction = QAction(self.rightClickMenu)
+        stopAction.setText("stop")
+        stopAction.triggered.connect(self.stopRL)
+
+        qlStartAction = QAction(self.rightClickMenu)
+        qlStartAction.setText("Q-Learning start")
+        qlStartAction.triggered.connect(self.qlStart)
+
+        self.rightClickMenu.addAction(stopAction)
+        self.rightClickMenu.addAction(qlStartAction)
+
+        # render timer
         renderTimer = QTimer(self)
         renderTimer.timeout.connect(self.update)
         renderTimer.start(15)
@@ -39,12 +56,29 @@ class Widget(QWidget):
         self.negRectPosList = ((1, 1), (1, 2), (2, 1))
         self.posElpPos = (2, 2)
 
-        # q learning
-        self.ql = Q_Learning(0.5, 0.5, 0.01)
-
+        self.rlObj = None
+        self.algorithm = None
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.qlRun)
-        self.timer.start(50)
+        self.timer.setInterval(50)
+
+    def stopRL(self):
+        if self.timer.isActive() and self.algorithm:
+            self.timer.stop()
+            self.timer.timeout.disconnect(self.algorithm)
+            self.algorithm = None
+            self.rlObj = None
+
+    def startRL(self, rlObj, algorithm):
+        if not self.timer.isActive() and not self.algorithm:
+            self.agentPos = (0, 0)
+            self.rlObj = rlObj
+            self.algorithm = algorithm
+            self.timer.timeout.connect(self.algorithm)
+            self.timer.start()
+
+    def contextMenuEvent(self, event):
+        self.rightClickMenu.exec_(event.globalPos())
+        super().contextMenuEvent(event)
 
     def paintEvent(self, event):
         # update all graphic
@@ -84,6 +118,9 @@ class Widget(QWidget):
 
         super().paintEvent(event)
 
+    def qlStart(self):
+        self.startRL(Q_Learning(0.5, 0.5, 0.01), self.qlRun)
+
     def qlRun(self):
         # judge if game restart
         if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
@@ -102,10 +139,10 @@ class Widget(QWidget):
             actionSet.add(Action.DOWN)
 
         # init state
-        self.ql.initState(self.agentPos, actionSet)
+        self.rlObj.initState(self.agentPos, actionSet)
 
         # get action with epsilon-greedy
-        action = self.ql.epsilon_greedy(self.agentPos)
+        action = self.rlObj.epsilon_greedy(self.agentPos)
 
         # get new state with the action got just now
         newAgentPos = (self.agentPos[0] + action.value[0], self.agentPos[1] + action.value[1])
@@ -121,7 +158,7 @@ class Widget(QWidget):
             reward = -((newAgentPos[0] - self.posElpPos[0])**2 + (newAgentPos[1] - self.posElpPos[1])**2)**0.5
 
         # update q table
-        self.ql.updateQTable(self.agentPos, action, newAgentPos, reward)
+        self.rlObj.updateQTable(self.agentPos, action, newAgentPos, reward)
 
         # make actual action, update state
         self.agentPos = newAgentPos
