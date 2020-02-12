@@ -26,7 +26,7 @@ class Q_Learning:
     # alpha, gamma, epsilon are all >0 and <1
     def __init__(self, alpha: float, gamma: float, epsilon: float):
 
-        # q table's value is also a dict, {action:reward} means
+        # self.qtable's values are also dicts, {action:reward} means
         # the action can take in this state and the action's reward
         self.qtable = {}  # q table
         self.alpha = alpha  # learn rate
