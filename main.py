@@ -62,24 +62,23 @@ class Widget(QWidget):
         self.posElpPos = (2, 2)
 
         self.rlObj = None
-        self.algorithm = None
+        self.stepRun = None
         self.timer = QTimer(self)
-        self.timer.setInterval(50)
 
     def stopRL(self):
-        if self.timer.isActive() and self.algorithm:
+        if self.timer.isActive() and self.stepRun:
             self.timer.stop()
-            self.timer.timeout.disconnect(self.algorithm)
-            self.algorithm = None
+            self.timer.timeout.disconnect(self.stepRun)
+            self.stepRun = None
             self.rlObj = None
 
-    def startRL(self, rlObj, algorithm):
-        if not self.timer.isActive() and not self.algorithm:
+    def startRL(self, rlObj, stepRun):
+        if not self.timer.isActive() and not self.stepRun:
             self.initBlueBallPos()
             self.rlObj = rlObj
-            self.algorithm = algorithm
-            self.timer.timeout.connect(self.algorithm)
-            self.timer.start()
+            self.stepRun = stepRun
+            self.timer.timeout.connect(self.stepRun)
+            self.timer.start(50)
 
     def initBlueBallPos(self):
         self.agentPos = (0, 0)
@@ -156,14 +155,14 @@ class Widget(QWidget):
         super().paintEvent(event)
 
     def qlStart(self):
-        self.startRL(Q_Learning(0.5, 0.5, 0.01), self.qlRun)
+        self.startRL(Q_Learning(0.5, 0.5, 0.01), self.qlStepRun)
 
-    def qlRun(self):
+    def qlStepRun(self):
         # judge if game restart
         if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
             self.initBlueBallPos()
             return
-        self.rlObj.run(self.agentPos, self.getActionSet, self.getNewState, self.getReward, self.updateState)
+        self.rlObj.stepRun(self.agentPos, self.getActionSet, self.getNewState, self.getReward, self.updateState)
 
 
 if __name__ == "__main__":
