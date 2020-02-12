@@ -84,6 +84,35 @@ class Widget(QWidget):
     def initBlueBallPos(self):
         self.agentPos = (0, 0)
 
+    def getActionSet(self, agentPos: tuple) -> set:
+        actionSet = set()
+        if agentPos[0] > 0:
+            actionSet.add(Action.LEFT)
+        if agentPos[0] < self.posWidth - 1:
+            actionSet.add(Action.RIGHT)
+        if agentPos[1] > 0:
+            actionSet.add(Action.UP)
+        if agentPos[1] < self.posHeight - 1:
+            actionSet.add(Action.DOWN)
+        return actionSet
+
+    def getNewState(self, agentPos: tuple, action: Action) -> tuple:
+        return (agentPos[0] + action.value[0], agentPos[1] + action.value[1])
+
+    def getReward(self, agentPos: tuple, action: Action) -> float:
+        newState = self.getNewState(agentPos, action)
+        reward = 0
+        if newState == self.posElpPos:
+            reward = 10
+        elif newState in self.negRectPosList:
+            reward = -10
+        else:
+            reward = -((newState[0] - self.posElpPos[0])**2 + (newState[1] - self.posElpPos[1])**2)**0.5
+        return reward
+
+    def updateState(self, newState: tuple):
+        self.agentPos = newState
+
     def contextMenuEvent(self, event):
         self.rightClickMenu.exec_(event.globalPos())
         super().contextMenuEvent(event)
@@ -134,42 +163,7 @@ class Widget(QWidget):
         if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
             self.initBlueBallPos()
             return
-
-        # action set
-        actionSet = set()
-        if self.agentPos[0] > 0:
-            actionSet.add(Action.LEFT)
-        if self.agentPos[0] < self.posWidth - 1:
-            actionSet.add(Action.RIGHT)
-        if self.agentPos[1] > 0:
-            actionSet.add(Action.UP)
-        if self.agentPos[1] < self.posHeight - 1:
-            actionSet.add(Action.DOWN)
-
-        # init state
-        self.rlObj.initState(self.agentPos, actionSet)
-
-        # get action with epsilon-greedy
-        action = self.rlObj.epsilon_greedy(self.agentPos)
-
-        # get new state with the action got just now
-        newAgentPos = (self.agentPos[0] + action.value[0], self.agentPos[1] + action.value[1])
-
-        # calculate the action's reward for current state
-        reward = 0
-        if newAgentPos == self.posElpPos:
-            reward = 10
-        elif newAgentPos in self.negRectPosList:
-            reward = -10
-        else:
-            # here the reward is bigger if the distance is smaller
-            reward = -((newAgentPos[0] - self.posElpPos[0])**2 + (newAgentPos[1] - self.posElpPos[1])**2)**0.5
-
-        # update q table
-        self.rlObj.updateQTable(self.agentPos, action, newAgentPos, reward)
-
-        # make actual action, update state
-        self.agentPos = newAgentPos
+        self.rlObj.run(self.agentPos, self.getActionSet, self.getNewState, self.getReward, self.updateState)
 
 
 if __name__ == "__main__":

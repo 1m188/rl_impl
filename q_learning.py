@@ -63,3 +63,20 @@ class Q_Learning:
 
         # calculate the q table's new value
         self.qtable[state][action] = (1 - self.alpha) * self.qtable[state][action] + self.alpha * (r + self.gamma * mr)
+
+    # an episode run
+    # state means current state
+    # getActionSet means a function, args are state, return a set type variable means action set
+    # getNewState means a function, args are state and action, return new state
+    # getReward means a function, args are current state and action, return the reward that state take action
+    # updateState means a function, args are new state, to make actual action and update state
+    def run(self, state, getActionSet, getNewState, getReward, updateState):
+
+        actionSet = getActionSet(state)
+        self.initState(state, actionSet)
+
+        action = self.epsilon_greedy(state)  # choose an action
+        newState = getNewState(state, action)  # get new state
+        reward = getReward(state, action)  # get state:action reward
+        self.updateQTable(state, action, newState, reward)  # update q table
+        updateState(newState)  # update state
