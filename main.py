@@ -30,6 +30,10 @@ class Widget(QWidget):
         self.rightClickMenu = QMenu(self)
         self.rightClickMenu.show()
 
+        initBlueBallPosAction = QAction(self.rightClickMenu)
+        initBlueBallPosAction.setText("initialize blue ball's position")
+        initBlueBallPosAction.triggered.connect(self.initBlueBallPos)
+
         stopAction = QAction(self.rightClickMenu)
         stopAction.setText("stop")
         stopAction.triggered.connect(self.stopRL)
@@ -38,6 +42,7 @@ class Widget(QWidget):
         qlStartAction.setText("Q-Learning start")
         qlStartAction.triggered.connect(self.qlStart)
 
+        self.rightClickMenu.addAction(initBlueBallPosAction)
         self.rightClickMenu.addAction(stopAction)
         self.rightClickMenu.addAction(qlStartAction)
 
@@ -70,11 +75,14 @@ class Widget(QWidget):
 
     def startRL(self, rlObj, algorithm):
         if not self.timer.isActive() and not self.algorithm:
-            self.agentPos = (0, 0)
+            self.initBlueBallPos()
             self.rlObj = rlObj
             self.algorithm = algorithm
             self.timer.timeout.connect(self.algorithm)
             self.timer.start()
+
+    def initBlueBallPos(self):
+        self.agentPos = (0, 0)
 
     def contextMenuEvent(self, event):
         self.rightClickMenu.exec_(event.globalPos())
@@ -124,7 +132,7 @@ class Widget(QWidget):
     def qlRun(self):
         # judge if game restart
         if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
-            self.agentPos = (0, 0)
+            self.initBlueBallPos()
             return
 
         # action set
