@@ -2,7 +2,7 @@ import sys
 from enum import Enum
 from PySide2.QtWidgets import QApplication, QWidget
 from PySide2.QtGui import QPainter
-from PySide2.QtCore import Qt, QRect, QTimer
+from PySide2.QtCore import Qt, QRectF, QTimer
 from q_learning import Q_Learning
 
 
@@ -49,11 +49,11 @@ class Widget(QWidget):
     def paintEvent(self, event):
         # update all graphic
         interval = 5
-        agent = QRect(self.width() / 4 * self.agentPos[0] + interval, self.height() / 4 * self.agentPos[1] + interval, self.width() / 4 - interval * 2, self.height() / 4 - interval * 2)
+        agent = QRectF(self.width() / 4 * self.agentPos[0] + interval, self.height() / 4 * self.agentPos[1] + interval, self.width() / 4 - interval * 2, self.height() / 4 - interval * 2)
         negRectList = []
         for negRectPos in self.negRectPosList:
-            negRectList.append(QRect(self.width() / 4 * negRectPos[0] + interval, self.height() / 4 * negRectPos[1] + interval, self.width() / 4 - 2 * interval, self.height() / 4 - 2 * interval))
-        posElp = QRect(self.width() / 4 * self.posElpPos[0] + interval, self.height() / 4 * self.posElpPos[1] + interval, self.width() / 4 - 2 * interval, self.height() / 4 - 2 * interval)
+            negRectList.append(QRectF(self.width() / 4 * negRectPos[0] + interval, self.height() / 4 * negRectPos[1] + interval, self.width() / 4 - 2 * interval, self.height() / 4 - 2 * interval))
+        posElp = QRectF(self.width() / 4 * self.posElpPos[0] + interval, self.height() / 4 * self.posElpPos[1] + interval, self.width() / 4 - 2 * interval, self.height() / 4 - 2 * interval)
 
         # start paint
         painter = QPainter(self)
