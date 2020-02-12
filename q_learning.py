@@ -2,6 +2,25 @@ import random
 
 
 # Q-Learning
+# it's core is building operant conditioned reflex, and make agent take the best action according to the q table.
+# 1. init state.
+# 2. choose a action with ε-greedy poilcy, and get observer of s'(new state) and reward.
+# 3. update q table: Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxQ(s')].
+# maxQ(s') means that the max reward can get in new state.
+# α means learn rate, the α bigger, the experience learn before will keep less.
+# γ means discount rate, the γ bigger, the future's influence will bigger.
+# 4. take actual action, and update state.
+# 5. repeat 2 3 4 until game end.
+# 6. repeat steps above to training until q table convergence.
+# Initialize Q arbitrarily
+# Repeat (for each episode):
+#     Initialize s
+#     Repeat (for each step of episode):
+#         Choose a from s using policy derived from Q(ε-greedy)
+#         Take action a, observe r
+#         Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxQ(s')]
+#         s = s'
+#     until s is terminal
 class Q_Learning:
 
     # alpha, gamma, epsilon are all >0 and <1
