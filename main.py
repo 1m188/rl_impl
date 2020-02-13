@@ -4,6 +4,7 @@ from PySide2.QtWidgets import QApplication, QWidget, QMenu, QAction
 from PySide2.QtGui import QPainter
 from PySide2.QtCore import Qt, QRectF, QTimer
 from q_learning import Q_Learning
+from sarsa import Sarsa
 
 
 class Action(Enum):
@@ -42,9 +43,14 @@ class Widget(QWidget):
         qlStartAction.setText("Q-Learning start")
         qlStartAction.triggered.connect(self.qlStart)
 
+        sarsaStartAction = QAction(self.rightClickMenu)
+        sarsaStartAction.setText("Sarsa start")
+        sarsaStartAction.triggered.connect(self.sarsaStart)
+
         self.rightClickMenu.addAction(initBlueBallPosAction)
         self.rightClickMenu.addAction(stopAction)
         self.rightClickMenu.addAction(qlStartAction)
+        self.rightClickMenu.addAction(sarsaStartAction)
 
         # render timer
         renderTimer = QTimer(self)
@@ -161,6 +167,18 @@ class Widget(QWidget):
         # judge if game restart
         if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
             self.initBlueBallPos()
+            return
+        self.rlObj.stepRun(self.agentPos, self.getActionSet, self.getNewState, self.getReward, self.updateState)
+
+    def sarsaStart(self):
+        rlObj = Sarsa(0.5, 0.5, 0.01)
+        rlObj.initAction(self.agentPos, self.getActionSet)
+        self.startRL(rlObj, self.sarsaStepRun)
+
+    def sarsaStepRun(self):
+        if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
+            self.initBlueBallPos()
+            self.rlObj.initAction(self.agentPos, self.getActionSet)
             return
         self.rlObj.stepRun(self.agentPos, self.getActionSet, self.getNewState, self.getReward, self.updateState)
 
