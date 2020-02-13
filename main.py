@@ -28,7 +28,7 @@ class Widget(QWidget):
 
         # mouse right click menu
         self.rightClickMenu = QMenu(self)
-        self.rightClickMenu.show()
+        self.rightClickMenu.show()  # i don't know if don't show before, the right mouse click menu show will be so slow, but if it show before, the menu will be quicker
 
         initBlueBallPosAction = QAction(self.rightClickMenu)
         initBlueBallPosAction.setText("initialize blue ball's position")
