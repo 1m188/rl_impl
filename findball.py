@@ -41,11 +41,11 @@ class Widget(QWidget):
 
         qlStartAction = QAction(self.rightClickMenu)
         qlStartAction.setText("Q-Learning start")
-        qlStartAction.triggered.connect(self.qlStart)
+        qlStartAction.triggered.connect(lambda: self.startRL(Q_Learning(0.5, 0.5, 0.01), self.qlStepRun))
 
         sarsaStartAction = QAction(self.rightClickMenu)
         sarsaStartAction.setText("Sarsa start")
-        sarsaStartAction.triggered.connect(self.sarsaStart)
+        sarsaStartAction.triggered.connect(lambda: self.startRL(Sarsa(0.5, 0.5, 0.01), self.sarsaStepRun))
 
         self.rightClickMenu.addAction(initBlueBallPosAction)
         self.rightClickMenu.addAction(stopAction)
@@ -63,6 +63,7 @@ class Widget(QWidget):
         self.posHeight = 4
 
         # all pos
+        self.agentInitPos = (0, 0)
         self.agentPos = None  # define and init state
         self.initBlueBallPos()
         self.negRectPosList = ((1, 1), (1, 2), (2, 1))
@@ -88,7 +89,7 @@ class Widget(QWidget):
             self.timer.start(50)
 
     def initBlueBallPos(self):
-        self.agentPos = (0, 0)
+        self.agentPos = self.agentInitPos
 
     def getActionSet(self, agentPos: tuple) -> set:
         actionSet = set()
@@ -161,9 +162,6 @@ class Widget(QWidget):
 
         super().paintEvent(event)
 
-    def qlStart(self):
-        self.startRL(Q_Learning(0.5, 0.5, 0.01), self.qlStepRun)
-
     def qlStepRun(self):
         # judge if game restart
         if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
@@ -171,13 +169,10 @@ class Widget(QWidget):
             return
         self.rlObj.stepRun(self.agentPos, self.getActionSet, self.getNewState, self.getReward, self.updateState)
 
-    def sarsaStart(self):
-        rlObj = Sarsa(0.5, 0.5, 0.01)
-        rlObj.initAction(self.agentPos, self.getActionSet)
-        self.startRL(rlObj, self.sarsaStepRun)
-
     def sarsaStepRun(self):
-        if self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
+        if self.agentPos == self.agentInitPos:
+            self.rlObj.initAction(self.agentPos, self.getActionSet)
+        elif self.agentPos == self.posElpPos or self.agentPos in self.negRectPosList:
             self.initBlueBallPos()
             self.rlObj.initAction(self.agentPos, self.getActionSet)
             return
