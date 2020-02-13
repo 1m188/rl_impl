@@ -3,8 +3,8 @@ from enum import Enum
 from PySide2.QtWidgets import QApplication, QWidget, QMenu, QAction
 from PySide2.QtGui import QPainter
 from PySide2.QtCore import Qt, QRectF, QTimer
-from q_learning import Q_Learning
-from sarsa import Sarsa
+from algorithm.q_learning import Q_Learning
+from algorithm.sarsa import Sarsa
 
 
 class Action(Enum):
