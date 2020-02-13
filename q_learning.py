@@ -59,7 +59,7 @@ class Q_Learning:
 
         # mr means the max reward that the new state can get,
         # if the new state has been never got before, set 0
-        mr = max(self.qtable[newState].values()) if newState in self.qtable else 0
+        mr = max(self.qtable[newState].values())
 
         # calculate the q table's new value
         self.qtable[state][action] = (1 - self.alpha) * self.qtable[state][action] + self.alpha * (r + self.gamma * mr)
@@ -77,6 +77,9 @@ class Q_Learning:
 
         action = self.epsilon_greedy(state)  # choose an action
         newState = getNewState(state, action)  # get new state
+        newActionSet = getActionSet(newState)
+        self.initState(newState, newActionSet)
+
         reward = getReward(state, action)  # get state:action reward
         self.updateQTable(state, action, newState, reward)  # update q table
         updateState(newState)  # update state
