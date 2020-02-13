@@ -72,13 +72,12 @@ class Q_Learning:
     # updateState means a function, args are new state, to make actual action and update state
     def stepRun(self, state, getActionSet, getNewState, getReward, updateState):
 
-        actionSet = getActionSet(state)
-        self.initQTable(state, actionSet)
+        self.initQTable(state, getActionSet(state))
 
         action = self.epsilon_greedy(state)  # choose an action
         newState = getNewState(state, action)  # get new state
-        newActionSet = getActionSet(newState)
-        self.initQTable(newState, newActionSet)
+
+        self.initQTable(newState, getActionSet(newState))
 
         reward = getReward(state, action)  # get state:action reward
         self.updateQTable(state, action, newState, reward)  # update q table
