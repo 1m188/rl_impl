@@ -33,10 +33,10 @@ class Q_Learning:
         self.gamma = gamma  # discount rate
         self.epsilon = epsilon  # epsilon-greedy
 
-    # initialize the current state, if the state has been never got
+    # initialize q table with the current state, if the state has been never got
     # before, set the reward of all actions about the state are 0
     # actionSet is the action set that the state can take
-    def initState(self, state, actionSet: set):
+    def initQTable(self, state, actionSet: set):
         if state not in self.qtable:
             p = {}
             for a in actionSet:
@@ -73,12 +73,12 @@ class Q_Learning:
     def stepRun(self, state, getActionSet, getNewState, getReward, updateState):
 
         actionSet = getActionSet(state)
-        self.initState(state, actionSet)
+        self.initQTable(state, actionSet)
 
         action = self.epsilon_greedy(state)  # choose an action
         newState = getNewState(state, action)  # get new state
         newActionSet = getActionSet(newState)
-        self.initState(newState, newActionSet)
+        self.initQTable(newState, newActionSet)
 
         reward = getReward(state, action)  # get state:action reward
         self.updateQTable(state, action, newState, reward)  # update q table
