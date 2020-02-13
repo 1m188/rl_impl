@@ -63,7 +63,8 @@ class Widget(QWidget):
         self.posHeight = 4
 
         # all pos
-        self.agentPos = (0, 0)  # define and init state
+        self.agentPos = None  # define and init state
+        self.initBlueBallPos()
         self.negRectPosList = ((1, 1), (1, 2), (2, 1))
         self.posElpPos = (2, 2)
 
