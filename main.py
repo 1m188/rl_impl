@@ -66,14 +66,14 @@ class Widget(QWidget):
         self.timer = QTimer(self)
 
     def stopRL(self):
-        if self.timer.isActive() and self.stepRun:
+        if self.timer.isActive():
             self.timer.stop()
             self.timer.timeout.disconnect(self.stepRun)
             self.stepRun = None
             self.rlObj = None
 
     def startRL(self, rlObj, stepRun):
-        if not self.timer.isActive() and not self.stepRun:
+        if not self.timer.isActive():
             self.initBlueBallPos()
             self.rlObj = rlObj
             self.stepRun = stepRun
