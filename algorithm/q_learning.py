@@ -17,7 +17,7 @@ import random
 #     Initialize s
 #     Repeat (for each step of episode):
 #         Choose a from s using policy derived from Q(ε-greedy)
-#         Take action a, observe r
+#         Take action a, observe r,s'
 #         Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxQ(s')]
 #         s = s'
 #     until s is terminal
