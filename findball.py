@@ -124,13 +124,16 @@ class Widget(QWidget):
         super().contextMenuEvent(event)
 
     def paintEvent(self, event):
+        widthInterval = self.width() / self.posWidth
+        heightInterval = self.height() / self.posHeight
+
         # update all graphic
         interval = 5
-        agent = QRectF(self.width() / self.posWidth * self.agentPos[0] + interval, self.height() / self.posHeight * self.agentPos[1] + interval, self.width() / self.posWidth - interval * 2, self.height() / self.posHeight - interval * 2)
+        agent = QRectF(widthInterval * self.agentPos[0] + interval, heightInterval * self.agentPos[1] + interval, widthInterval - interval * 2, heightInterval - interval * 2)
         negRectList = []
         for negRectPos in self.negRectPosList:
-            negRectList.append(QRectF(self.width() / self.posWidth * negRectPos[0] + interval, self.height() / self.posHeight * negRectPos[1] + interval, self.width() / self.posWidth - 2 * interval, self.height() / self.posHeight - 2 * interval))
-        posElp = QRectF(self.width() / self.posWidth * self.posElpPos[0] + interval, self.height() / self.posHeight * self.posElpPos[1] + interval, self.width() / self.posWidth - 2 * interval, self.height() / self.posHeight - 2 * interval)
+            negRectList.append(QRectF(widthInterval * negRectPos[0] + interval, heightInterval * negRectPos[1] + interval, widthInterval - 2 * interval, heightInterval - 2 * interval))
+        posElp = QRectF(widthInterval * self.posElpPos[0] + interval, heightInterval * self.posElpPos[1] + interval, widthInterval - 2 * interval, heightInterval - 2 * interval)
 
         # start paint
         painter = QPainter(self)
@@ -138,9 +141,9 @@ class Widget(QWidget):
         # draw line
         painter.setPen(Qt.black)
         for i in range(1, self.posHeight):
-            painter.drawLine(0, i * self.height() / self.posHeight, self.width(), i * self.height() / self.posHeight)
+            painter.drawLine(0, i * heightInterval, self.width(), i * heightInterval)
         for i in range(1, self.posWidth):
-            painter.drawLine(i * self.width() / self.posWidth, 0, i * self.width() / self.posWidth, self.height())
+            painter.drawLine(i * widthInterval, 0, i * widthInterval, self.height())
 
         # draw negative rect
         painter.setBrush(Qt.black)
