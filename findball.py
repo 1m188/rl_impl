@@ -82,7 +82,6 @@ class Widget(QWidget):
 
     def startRL(self, rlObj, stepRun):
         if not self.timer.isActive():
-            self.initBlueBallPos()
             self.rlObj = rlObj
             self.stepRun = stepRun
             self.timer.timeout.connect(self.stepRun)
@@ -164,6 +163,7 @@ class Widget(QWidget):
         super().paintEvent(event)
 
     def qlStart(self):
+        self.initBlueBallPos()  # may be the last training result that the pos in the normal pos
         self.startRL(Q_Learning(0.5, 0.5, 0.01), self.qlStepRun)
 
     def qlStepRun(self):
@@ -175,6 +175,7 @@ class Widget(QWidget):
 
     def sarsaStart(self):
         rlObj = Sarsa(0.5, 0.5, 0.01)
+        self.initBlueBallPos()
         rlObj.initAction(self.agentPos, self.getActionSet)
         self.startRL(rlObj, self.sarsaStepRun)
 
