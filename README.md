@@ -2,7 +2,7 @@
 
 针对具体的小游戏实现了一些强化学习算法，以作学习
 
-使用python 3.6.2，具体依赖参见requirements.txt
+使用python 3.x，pyside2 5.15.0
 
 ## Q-Learning
 
@@ -10,7 +10,7 @@ Q-Learning是一种model free，off policy，基于值的学习方法。其主�
 
 游戏开始的时候首先初始化Q表，之后获取当前状态s，根据某种策略选择一个动作a（这里的策略可以是ε-greedy之类的），之后获取当前状态s采取该动作a的收益r和之后的新的状态s'，通过
 
-Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxRQ(s')]
+`Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxRQ(s')]`
 
 公式进行Q表的更新。
 
@@ -18,15 +18,17 @@ maxRQ(s')指的是Q表之中s'状态所能够获得的最大收益。α指的是
 
 反复进行上述的操作直到游戏结束，游戏结束后如果Q表没有收敛的话则再进行一遍游戏。
 
-Initialize Q arbitrarily  
-Repeat (for each episode):  
-&emsp;&emsp;Initialize s  
-&emsp;&emsp;Repeat (for each step of episode):  
-&emsp;&emsp;&emsp;&emsp;Choose a from s using policy derived from Q(ε-greedy)  
-&emsp;&emsp;&emsp;&emsp;Take action a, observe r, s'  
-&emsp;&emsp;&emsp;&emsp;Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxRQ(s')]  
-&emsp;&emsp;&emsp;&emsp;s = s'  
-&emsp;&emsp;until s is terminal
+```
+Initialize Q arbitrarily
+Repeat (for each episode):
+    Initialize s
+    Repeat (for each step of episode):
+        Choose a from s using policy derived from Q(ε-greedy)
+        Take action a, observe r, s'
+        Q(s,a) = (1 - α) * Q(s,a) + α * [reward + γ * maxRQ(s')]
+        s = s'
+    until s is terminal
+```
 
 Q-Learning最关键的部分就在于建立完整的Q表，然后通过查找Q表中的状态来获取可选择的动作以及每种动作所获取的收益以此做出抉择，就像是巴普洛夫的狗一样建立一种操作性条件反射。之所以说它是一种off policy的学习方法是因为每次更新Q表的时候明明有考虑到新状态能够获取的最大收益，但是下一次到新状态再选择动作时不一定选择的是能够带来最大收益的动作，因此它之前所做的都是一种模拟性质的行为，这就是off policy，不一定实际做出相应的动作。
 
@@ -36,7 +38,7 @@ Sarsa和Q-Learning很相似，其核心都是采用Q表来做状态记录和查�
 
 其流程和Q-Learning也很相似。首先初始化Q表，然后游戏开始之后初始化当前状态s以及一个action a，这个action通过某种策略（ε-greedy）来选择，然后对于游戏中的每一步首先通过s和a来确定新的状态s'和收益r，之后通过某种策略选择新的状态s'下的动作a'，之后通过
 
-Q(s,a) = (1 - α) * Q(s,a) + α * [r + γ * Q(s',a')]
+`Q(s,a) = (1 - α) * Q(s,a) + α * [r + γ * Q(s',a')]`
 
 公式更新Q表。
 
@@ -44,15 +46,17 @@ Q(s,a) = (1 - α) * Q(s,a) + α * [r + γ * Q(s',a')]
 
 反复进行上述步骤直到游戏结束，如果Q表没有收敛则再进行一遍游戏。
 
-Initialize Q arbitrarily  
-Repeat (for each episode):  
-&emsp;&emsp;Initialize s  
-&emsp;&emsp;Choose a from s using policy derived from Q(ε-greedy)  
-&emsp;&emsp;Repeat (for each step of episode):  
-&emsp;&emsp;&emsp;&emsp;Take action a, observe r, s'  
-&emsp;&emsp;&emsp;&emsp;Choose a' from s' using policy derived from Q(ε-greedy)  
-&emsp;&emsp;&emsp;&emsp;Q(s,a) = (1 - α) * Q(s,a) + α * [r + γ * Q(s',a')]  
-&emsp;&emsp;&emsp;&emsp;s = s' ; a = a'  
-&emsp;&emsp;until s is terminal  
+```
+Initialize Q arbitrarily
+Repeat (for each episode):
+    Initialize s
+    Choose a from s using policy derived from Q(ε-greedy)
+    Repeat (for each step of episode):
+        Take action a, observe r, s'
+        Choose a' from s' using policy derived from Q(ε-greedy)
+        Q(s,a) = (1 - α) * Q(s,a) + α * [r + γ * Q(s',a')]
+        s = s' ; a = a'
+    until s is terminal
+```
 
 Sarsa在所选择的下一步动作的时候可能带有风险，而Q-Learning则总是选最大的；Sarsa选择了下一个状态的执行动作并且当状态转到下一个状态之后必定执行之前选择的动作，而Q-Learning则不一定，这也是为什么说Q-Learning是off policy而Sarsa是on policy的原因，Q-Learning用来判断当前这一步的依据它在下一步不一定执行，而Sarsa则很相信自己，它在这一步用来判断的依据下一步一定执行。
