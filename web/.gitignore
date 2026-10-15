@@ -1,0 +1,7 @@
+# 依赖与构建产物都不进仓库
+node_modules
+dist
+
+# 编辑器 / 系统
+.vscode
+.DS_Store
