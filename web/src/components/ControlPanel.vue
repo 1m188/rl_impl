@@ -6,7 +6,12 @@ import { SPEEDS, type SimulationApi } from '../composables/useSimulation';
 
 const props = defineProps<{
   sim: SimulationApi;
-  displayMode: DisplayMode;
+  /** 不传就不显示"棋盘叠加"这一段（贪吃蛇没有叠加层） */
+  displayMode?: DisplayMode;
+  /** 不传就不显示"初始化"按钮（不同游戏文案不同） */
+  resetLabel?: string;
+  /** Q 表状态数的分母：找红球是固定的格子数，贪吃蛇没有上限 */
+  stateTotal?: number;
 }>();
 
 const emit = defineEmits<{
@@ -46,7 +51,10 @@ const stats = computed(() => [
   {
     key: 'state-count',
     label: 'Q 表状态数',
-    value: `${props.sim.tableView.knownCount} / ${props.sim.tableView.stateCount}`,
+    value:
+      props.stateTotal === undefined
+        ? String(props.sim.knownStates)
+        : `${props.sim.knownStates} / ${props.stateTotal}`,
   },
   {
     key: 'recent-steps',
@@ -110,8 +118,8 @@ const stats = computed(() => [
           <span class="btn__icon">■</span>stop
         </button>
       </div>
-      <button type="button" class="btn btn--ghost wide" @click="sim.resetBall()">
-        <span class="btn__icon">↺</span>initialize blue ball's position
+      <button v-if="resetLabel" type="button" class="btn btn--ghost wide" @click="sim.resetState()">
+        <span class="btn__icon">↺</span>{{ resetLabel }}
       </button>
       <p class="hint">stop 会丢掉这一轮学到的 Q 表（与原实现一致），想保留请用 pause。</p>
     </section>
@@ -192,7 +200,7 @@ const stats = computed(() => [
       </p>
     </section>
 
-    <section class="group">
+    <section v-if="displayMode !== undefined" class="group">
       <h3 class="group__title">棋盘叠加</h3>
       <div class="modes">
         <button

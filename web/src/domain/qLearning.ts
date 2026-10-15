@@ -1,6 +1,6 @@
 import type { Action } from './actions';
 import { argmax, maxValue, randomKey, type Agent, type QTable, type StepResult } from './agent';
-import type { FindBallEnv, State } from './env';
+import type { GameEnv, State } from './game';
 import { mathRandomSource, type RandomSource } from './rng';
 
 /**
@@ -60,7 +60,7 @@ export class QLearning implements Agent {
   }
 
   /** 对应 qlStepRun 里调用的 rlObj.stepRun(...) */
-  step(state: State, env: FindBallEnv): StepResult {
+  step(state: State, env: GameEnv): StepResult {
     this.initQTable(state, env.actionSet(state));
 
     const action = this.epsilonGreedy(state);
@@ -78,7 +78,7 @@ export class QLearning implements Agent {
   }
 
   /** qlStart 只重置球的位置，Q 表继续留着，所以这里是空操作 */
-  reset(_state: State, _env: FindBallEnv): void {}
+  reset(_state: State, _env: GameEnv): void {}
 
   greedyAction(state: State): Action {
     return argmax(this.rowOf(state));

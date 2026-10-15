@@ -1,5 +1,5 @@
 import type { Action } from './actions';
-import type { FindBallEnv, State } from './env';
+import type { GameEnv, State } from './game';
 
 /** Q 表：state -> { action -> 价值 }。原实现是 dict[state][action]。 */
 export type QTable = Map<State, Map<Action, number>>;
@@ -30,9 +30,9 @@ export interface Agent {
    * 一集开始时的准备。对应 qlStart / sarsaStart：
    * Q-Learning 无事可做；Sarsa 需要 initAction（挑出第一步要执行的动作）。
    */
-  reset(state: State, env: FindBallEnv): void;
+  reset(state: State, env: GameEnv): void;
   /** 对应 stepRun：更新 Q 表并把"下一个状态"作为结果返回（状态的推进由 Trainer 完成） */
-  step(state: State, env: FindBallEnv): StepResult;
+  step(state: State, env: GameEnv): StepResult;
   /** 不含探索的策略（取 argmax）。原实现没有这个方法，是为可视化与测试新增的读取入口。 */
   greedyAction(state: State): Action;
 }

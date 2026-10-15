@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { VueWrapper } from '@vue/test-utils';
 
 import {
+  activeTab,
   arrowCount,
   ballCell,
   cellLabel,
@@ -34,9 +35,9 @@ afterEach(() => {
 describe('界面：基本接线', () => {
   it('渲染 4x4 网格、3 个陷阱、1 个终点，球在起点', () => {
     wrapper = mountApp();
-    expect(wrapper.findAll('.cell')).toHaveLength(16);
-    expect(wrapper.findAll('.cell--trap')).toHaveLength(3);
-    expect(wrapper.findAll('.goal')).toHaveLength(1);
+    expect(activeTab(wrapper).findAll('.cell')).toHaveLength(16);
+    expect(activeTab(wrapper).findAll('.cell--trap')).toHaveLength(3);
+    expect(activeTab(wrapper).findAll('.goal')).toHaveLength(1);
     expect(ballCell(wrapper)).toStrictEqual({ x: 0, y: 0 });
     expect(textOf(wrapper, 'algorithm')).toBe('未运行');
     expect(textOf(wrapper, 'state-count')).toBe('0 / 16');

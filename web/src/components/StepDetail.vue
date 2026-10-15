@@ -2,13 +2,13 @@
 import { computed } from 'vue';
 
 import type { StepResult } from '../domain/agent';
-import type { FindBallEnv } from '../domain/env';
+import type { GameEnv } from '../domain/game';
 import type { AlgorithmKind } from '../composables/useSimulation';
 
 const props = defineProps<{
   transition: StepResult | null;
   kind: AlgorithmKind | null;
-  env: FindBallEnv;
+  env: GameEnv;
   alpha: number;
   gamma: number;
 }>();
@@ -22,7 +22,8 @@ const ACTION_LABEL: Record<string, string> = {
 
 const target = computed(() => (props.kind === 'sarsa' ? "r + γ·Q(s',a')" : "r + γ·maxQ(s')"));
 
-const at = (state: number) => `(${props.env.x(state)}, ${props.env.y(state)})`;
+/** 状态的文字描述由各游戏自己给（找红球是坐标，贪吃蛇是头/食物/长度） */
+const at = (state: number) => props.env.describe(state);
 const num = (value: number) => value.toFixed(3);
 
 /** 收益条：宽度按 |r| / 10 计，正负用颜色区分 */

@@ -1,18 +1,14 @@
 import { ACTION_ORDER, DELTA, type Action } from './actions';
+import type { GameEnv, State } from './game';
+
+export type { GameEnv, State } from './game';
 
 /**
- * 状态：打包成整数 y * width + x。
- * 原 Python 用 (x, y) 元组当 dict 的键；换成整数是为了让 Q 表可直接序列化、
- * 也方便阶段二把 Q 值当数组下标画热力图。算法侧同样只把它当作不透明的 key。
- */
-export type State = number;
-
-/**
- * 游戏规则 —— 对应 findball.py 注入给算法的那几个回调：
+ * 找红球的游戏规则 —— 对应 findball.py 注入给算法的那几个回调：
  *   getActionSet / getNewState / getReward / updateState(由 Trainer 负责)
  * 这里把它们收在一个对象里，逻辑逐行对齐原实现。
  */
-export interface FindBallEnv {
+export interface FindBallEnv extends GameEnv {
   readonly width: number;
   readonly height: number;
   readonly start: State;
@@ -22,15 +18,6 @@ export interface FindBallEnv {
   pack(x: number, y: number): State;
   x(state: State): number;
   y(state: State): number;
-
-  /** 对应 getActionSet：越界的动作不给出，顺序恒为 ACTION_ORDER */
-  actionSet(state: State): Action[];
-  /** 对应 getNewState：与原实现一样不做越界检查（动作集合已经保证了合法性） */
-  next(state: State, action: Action): State;
-  /** 对应 getReward：终点 +10，陷阱 -10，其余为到终点的欧氏距离取负 */
-  reward(state: State, action: Action): number;
-  /** 对应 qlStepRun/sarsaStepRun 开头那两行终止判断 */
-  isTerminal(state: State): boolean;
 }
 
 export interface FindBallConfig {
@@ -96,5 +83,33 @@ export function createFindBallEnv(config: FindBallConfig = {}): FindBallEnv {
 
   const isTerminal = (state: State): boolean => state === goal || traps.has(state);
 
-  return { width, height, start, goal, traps, pack, x, y, actionSet, next, reward, isTerminal };
+  /** 终止原因：终点 / 陷阱；找红球没有"超时"这种收尾 */
+  const terminalReason = (state: State): string | null => {
+    if (state === goal) return 'goal';
+    if (traps.has(state)) return 'trap';
+    return null;
+  };
+
+  const describe = (state: State): string => `(${x(state)}, ${y(state)})`;
+
+  /** 开一局：回到起点（找红球没有随机性，所以每次都一样） */
+  const reset = (): State => start;
+
+  return {
+    width,
+    height,
+    start,
+    goal,
+    traps,
+    pack,
+    x,
+    y,
+    actionSet,
+    next,
+    reward,
+    isTerminal,
+    terminalReason,
+    describe,
+    reset,
+  };
 }

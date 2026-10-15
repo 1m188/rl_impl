@@ -1,6 +1,6 @@
 import type { Action } from './actions';
 import { argmax, randomKey, type Agent, type QTable, type StepResult } from './agent';
-import type { FindBallEnv, State } from './env';
+import type { GameEnv, State } from './game';
 import { mathRandomSource, type RandomSource } from './rng';
 
 /**
@@ -48,13 +48,13 @@ export class Sarsa implements Agent {
   }
 
   /** 对应 sarsaStart 里的 rlObj.initAction(agentPos, getActionSet) */
-  initAction(state: State, env: FindBallEnv): void {
+  initAction(state: State, env: GameEnv): void {
     this.initQTable(state, env.actionSet(state));
     this.action = this.epsilonGreedy(state);
   }
 
   /** 对应 Agent 接口：Sarsa 的一集起点需要挑出第一个动作 */
-  reset(state: State, env: FindBallEnv): void {
+  reset(state: State, env: GameEnv): void {
     this.initAction(state, env);
   }
 
@@ -81,7 +81,7 @@ export class Sarsa implements Agent {
   }
 
   /** 对应 sarsaStepRun 里调用的 rlObj.stepRun(...) */
-  step(state: State, env: FindBallEnv): StepResult {
+  step(state: State, env: GameEnv): StepResult {
     if (this.action === null) {
       throw new Error('Sarsa: 还没有初始化动作（一集开始时必须先调用 initAction/reset）');
     }

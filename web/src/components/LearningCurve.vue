@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import type { EpisodeRecord } from '../domain/trainer';
+import { endReasonLabel } from '../ui/labels';
 
 const props = defineProps<{ history: EpisodeRecord[] }>();
 
@@ -98,14 +99,20 @@ const episodeRange = computed(() => {
   return first === last ? `第 ${first} 集` : `第 ${first} – ${last} 集`;
 });
 
-/** 最近 20 集的平均步数与平均收益，用来量化"学到什么程度了" */
+/** 最近 20 集的平均步数、平均收益与收尾方式分布 */
 const recent = computed(() => {
   const window = props.history.slice(-AVERAGE_WINDOW);
   if (window.length === 0) return null;
   const steps = window.reduce((sum, r) => sum + r.steps, 0) / window.length;
   const reward = window.reduce((sum, r) => sum + r.reward, 0) / window.length;
-  const goals = window.filter((r) => r.end === 'goal').length;
-  return { count: window.length, steps, reward, goals };
+
+  const counts = new Map<string, number>();
+  for (const record of window) counts.set(record.end, (counts.get(record.end) ?? 0) + 1);
+  const reasons = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => ({ reason, label: endReasonLabel(reason), count }));
+
+  return { count: window.length, steps, reward, reasons };
 });
 
 const metricIndex = computed(() => METRICS.findIndex((item) => item.value === metric.value));
@@ -226,7 +233,7 @@ const hovered = computed(() => {
             :text-anchor="hovered.anchor"
           >
             第 {{ hovered.episode }} 集 · {{ metric === 'steps' ? `${hovered.value} 步` : hovered.value.toFixed(1) }}
-            · 均值 {{ hovered.average.toFixed(1) }} · {{ hovered.end === 'goal' ? '到终点' : '踩陷阱' }}
+            · 均值 {{ hovered.average.toFixed(1) }} · {{ endReasonLabel(hovered.end) }}
           </text>
         </template>
       </svg>
@@ -235,8 +242,11 @@ const hovered = computed(() => {
         <span>{{ episodeRange }}</span>
         <span>细线 = 每集实际值，粗线 = 近 {{ AVERAGE_WINDOW }} 集滑动平均</span>
         <span v-if="recent">
-          最近 {{ recent.count }} 集：平均 {{ recent.steps.toFixed(1) }} 步、
-          平均收益 {{ recent.reward.toFixed(1) }}、到终点 {{ recent.goals }}/{{ recent.count }} 次
+          最近 {{ recent.count }} 集：平均 {{ recent.steps.toFixed(1) }} 步、平均收益
+          {{ recent.reward.toFixed(1) }}、收尾
+          <template v-for="(item, index) in recent.reasons" :key="item.reason"
+            >{{ index > 0 ? ' / ' : '' }}{{ item.label }} {{ item.count }}</template
+          >
         </span>
       </p>
     </template>

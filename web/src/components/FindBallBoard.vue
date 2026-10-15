@@ -14,12 +14,12 @@ import { heatRgba } from '../ui/heat';
 
 const props = defineProps<{
   env: FindBallEnv;
-  ball: number;
+  state: State;
   view: QTableView;
   displayMode: DisplayMode;
   trail: State[];
-  burst: { key: number; state: State; reason: 'goal' | 'trap' } | null;
-  ballDurationMs: number;
+  burst: { key: number; state: State; reason: string } | null;
+  moveDurationMs: number;
   teleported: boolean;
   running: boolean;
 }>();
@@ -42,7 +42,7 @@ interface Cell extends StateView {
   lastRow: boolean;
   arrow: string;
   heat: string | undefined;
-  burst: { key: number; reason: 'goal' | 'trap' } | null;
+  burst: { key: number; reason: string } | null;
 }
 
 const cells = computed<Cell[]>(() =>
@@ -66,8 +66,8 @@ const cells = computed<Cell[]>(() =>
 );
 
 /** 球的位移用 transform（走 GPU 合成，且被打断时能从当前位置续上） */
-const ballTransform = computed(() => ({
-  transform: `translate(${props.env.x(props.ball) * 100}%, ${props.env.y(props.ball) * 100}%)`,
+const stateTransform = computed(() => ({
+  transform: `translate(${props.env.x(props.state) * 100}%, ${props.env.y(props.state) * 100}%)`,
 }));
 
 function trailTransform(state: State, index: number) {
@@ -102,13 +102,13 @@ const fmt = (value: number | undefined) => (value === undefined ? '—' : value.
       :style="{
         '--cols': env.width,
         '--rows': env.height,
-        '--ball-duration': teleported ? '0ms' : `${ballDurationMs}ms`,
+        '--ball-duration': teleported ? '0ms' : `${moveDurationMs}ms`,
       }"
     >
       <div
         class="board"
         role="img"
-        :aria-label="`${env.width} 乘 ${env.height} 的网格，蓝球在第 ${env.x(ball) + 1} 列第 ${env.y(ball) + 1} 行`"
+        :aria-label="`${env.width} 乘 ${env.height} 的网格，蓝球在第 ${env.x(state) + 1} 列第 ${env.y(state) + 1} 行`"
         @mouseleave="hovered = null"
       >
         <div
@@ -150,13 +150,13 @@ const fmt = (value: number | undefined) => (value === undefined ? '—' : value.
         </div>
 
         <span
-          v-for="(state, index) in trail"
+          v-for="(trailState, index) in trail"
           :key="index"
           class="trail"
-          :style="trailTransform(state, index)"
+          :style="trailTransform(trailState, index)"
         />
 
-        <div class="agent" :class="{ 'agent--running': running }" :data-cell="`${env.x(ball)},${env.y(ball)}`" :style="ballTransform">
+        <div class="agent" :class="{ 'agent--running': running }" :data-cell="`${env.x(state)},${env.y(state)}`" :style="stateTransform">
           <span class="agent__dot" />
         </div>
       </div>

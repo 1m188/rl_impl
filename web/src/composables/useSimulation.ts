@@ -1,9 +1,8 @@
-import { computed, onBeforeUnmount, reactive, ref, shallowRef } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch, type Ref } from 'vue';
 
 import type { Agent, StepResult } from '../domain/agent';
-import { createFindBallEnv, type FindBallEnv, type State } from '../domain/env';
+import type { GameEnv, State } from '../domain/game';
 import { QLearning } from '../domain/qLearning';
-import { readQTableView, type QTableView } from '../domain/qTableView';
 import { lcgSource, mathRandomSource, type RandomSource } from '../domain/rng';
 import { Sarsa } from '../domain/sarsa';
 import { Trainer, type EpisodeRecord } from '../domain/trainer';
@@ -19,7 +18,7 @@ export interface SimulationParams {
   epsilon: number;
 }
 
-/** 超参照抄 findball.py 的 qlStart / sarsaStart：Q_Learning(0.5, 0.5, 0.01) */
+/** 找红球的超参：照抄 findball.py 的 Q_Learning(0.5, 0.5, 0.01) */
 export const DEFAULT_PARAMS: SimulationParams = { alpha: 0.5, gamma: 0.5, epsilon: 0.01 };
 
 /** 原实现里 self.timer.start(50)：1x 就是每 50ms 走一步 */
@@ -28,45 +27,56 @@ const BASE_STEP_INTERVAL_MS = 50;
 const MAX_CATCH_UP_STEPS = 40;
 /** 学习曲线与统计只看最近这些集，避免把几万条记录都塞进响应式数据 */
 const HISTORY_WINDOW = 600;
-/** 球的轨迹残影保留几个点 */
+/** 轨迹残影保留几个点 */
 const TRAIL_LENGTH = 6;
 
 export const SPEEDS = [0.5, 1, 2, 5, 20] as const;
 export type Speed = (typeof SPEEDS)[number];
 
+export interface SimulationOptions {
+  /** 一集最多走多少步（贪吃蛇需要，找红球不需要） */
+  maxStepsPerEpisode?: number;
+  /** 默认超参，不同游戏不一样 */
+  defaultParams?: SimulationParams;
+  /** 所在页签是否激活：不激活时停掉动画帧但保留状态 */
+  active?: Ref<boolean>;
+}
+
 /**
- * 把 domain 层接到 Vue 上。
+ * 把 domain 层接到 Vue 上。与具体游戏无关：只依赖 GameEnv 接口，
+ * 所以找红球和贪吃蛇共用同一份实现。
  *
  * 逻辑推进用"固定步长累加器"：渲染跟着 requestAnimationFrame 走，
  * 但每一步的间隔由倍速决定（1x = 50ms，与原 QTimer 一致），与屏幕刷新率无关。
  */
-export function useSimulation() {
-  const env: FindBallEnv = createFindBallEnv();
+export function useSimulation(env: GameEnv, options: SimulationOptions = {}) {
+  const isActive = options.active ?? ref(true);
 
-  const ball = ref<State>(env.start);
+  const state = ref<State>(env.reset());
   const runState = ref<RunState>('idle');
   const algorithm = ref<AlgorithmKind | null>(null);
   const episode = ref(0);
   const steps = ref(0);
+  const knownStates = ref(0);
   const speed = ref<Speed>(1);
-  const params = reactive<SimulationParams>({ ...DEFAULT_PARAMS });
+  const params = reactive<SimulationParams>({ ...(options.defaultParams ?? DEFAULT_PARAMS) });
   const seedText = ref('');
   /** 本次运行实际用的种子：null 表示用 Math.random（不可复现） */
   const appliedSeed = ref<number | null>(null);
   const lastTransition = ref<StepResult | null>(null);
   const history = ref<EpisodeRecord[]>([]);
-  /** 球刚走过的几个格子（最新的在前），用来画轨迹残影 */
+  /** 刚走过的几个状态（最新的在前），用来画轨迹残影 */
   const trail = ref<State[]>([]);
-  /** 刚发生"换局瞬移"：这一步球是直接闪回起点，不该滑过去 */
+  /** 刚发生"换局瞬移"：这一步是直接闪回开局位置，不该滑过去 */
   const teleported = ref(false);
-  /** 最近一次一集结束的位置与原因，key 就是回合数（用于让命中动画重新播放） */
-  const lastEpisodeEnd = ref<{ key: number; state: State; reason: 'goal' | 'trap' } | null>(null);
+  /** 最近一次一集结束的位置与原因，key 是回合数（用于让命中动画重新播放） */
+  const lastEpisodeEnd = ref<{ key: number; state: State; reason: string } | null>(null);
   /** 每 tick 递增，用来驱动 Q 表视图重算（Q 表本身不放进深层响应式） */
   const revision = ref(0);
 
   /**
    * Q 表放在浅引用里：20Hz 的热路径上没必要让 Vue 去深度代理它。
-   * 视图通过 computed + revision 拿到摊平后的只读快照。
+   * 各游戏自己用 computed + revision 把它摊平成需要的视图。
    */
   const agent = shallowRef<Agent | null>(null);
   let trainer: Trainer | null = null;
@@ -77,17 +87,12 @@ export function useSimulation() {
   const stepIntervalMs = computed(() => BASE_STEP_INTERVAL_MS / speed.value);
 
   /**
-   * 球的滑行时长：略短于一步的间隔，这样每步之间能滑过去又不至于"追不上"下一步。
+   * 移动动画时长：略短于一步的间隔，这样每步之间能滑过去又不至于"追不上"下一步。
    * 20x 时只有 2ms，实际上就是瞬移 —— 本来也看不清。
    */
-  const ballDurationMs = computed(() =>
+  const moveDurationMs = computed(() =>
     Math.round(Math.min(Math.max(stepIntervalMs.value * 0.85, 0), 150)),
   );
-
-  const tableView = computed<QTableView>(() => {
-    revision.value; // 依赖：每个 tick 都变，保证 Q 表更新后重新摊平
-    return readQTableView(agent.value, env);
-  });
 
   const running = computed(() => runState.value === 'running');
   const hasAgent = computed(() => agent.value !== null);
@@ -105,9 +110,10 @@ export function useSimulation() {
 
   function snapshot(): void {
     if (!trainer) return;
-    ball.value = trainer.state;
+    state.value = trainer.state;
     episode.value = trainer.episode;
     steps.value = trainer.steps;
+    knownStates.value = trainer.agent.qtable.size;
     lastTransition.value = trainer.lastTransition;
     history.value = trainer.history.slice(-HISTORY_WINDOW);
     revision.value += 1;
@@ -115,7 +121,7 @@ export function useSimulation() {
 
   /**
    * 推进一个 tick，并把"给动画看的东西"一起更新：
-   * 走一步就延长轨迹残影，一集结束就记下终点/陷阱位置、清空残影、并标记这一次是瞬移。
+   * 走一步就延长轨迹残影，一集结束就记下结束位置、清空残影、并标记这一次是瞬移。
    *
    * 残影按"最新在前"存，界面上就能用固定的下标当 key，元素被复用而不是每步重建，
    * CSS 过渡才连得上。
@@ -144,6 +150,11 @@ export function useSimulation() {
 
   function frame(timestamp: number): void {
     if (runState.value !== 'running' || !trainer) return;
+    // 页签被切走：停止调度动画帧，但保留状态（切回来会继续）
+    if (!isActive.value) {
+      rafId = 0;
+      return;
+    }
     if (lastTimestamp === 0) lastTimestamp = timestamp;
     accumulator += timestamp - lastTimestamp;
     lastTimestamp = timestamp;
@@ -160,10 +171,15 @@ export function useSimulation() {
   }
 
   function scheduleFrame(): void {
+    if (!isActive.value) return;
     accumulator = 0;
     lastTimestamp = 0;
     rafId = requestAnimationFrame(frame);
   }
+
+  watch(isActive, (active) => {
+    if (active && runState.value === 'running' && rafId === 0) scheduleFrame();
+  });
 
   /** 对应右键菜单的 "Q-Learning start" / "Sarsa start" */
   function start(kind: AlgorithmKind): void {
@@ -172,6 +188,12 @@ export function useSimulation() {
     const { alpha, gamma, epsilon } = params;
     const seed = parseSeed();
     const rng: RandomSource = seed === null ? mathRandomSource : lcgSource(seed);
+
+    // 环境自己的随机数（贪吃蛇撒食物）用另一条流，免得跟 agent 的探索数重叠
+    if (env.useRandom) {
+      env.useRandom(seed === null ? mathRandomSource : lcgSource((seed + 0x9e3779b9) >>> 0));
+    }
+
     const next: Agent =
       kind === 'qlearning'
         ? new QLearning(alpha, gamma, epsilon, rng)
@@ -179,8 +201,8 @@ export function useSimulation() {
 
     agent.value = next;
     appliedSeed.value = seed;
-    trainer = new Trainer(env, next);
-    trainer.start(); // 对应 qlStart / sarsaStart：球回起点，Sarsa 在这里挑出第一个动作
+    trainer = new Trainer(env, next, { maxStepsPerEpisode: options.maxStepsPerEpisode });
+    trainer.start();
 
     algorithm.value = kind;
     runState.value = 'running';
@@ -188,7 +210,7 @@ export function useSimulation() {
     scheduleFrame();
   }
 
-  /** 暂停：保留 Q 表与球的位置，之后可以继续 */
+  /** 暂停：保留 Q 表与局面，之后可以继续 */
   function pause(): void {
     if (runState.value !== 'running') return;
     runState.value = 'paused';
@@ -212,7 +234,7 @@ export function useSimulation() {
   function trainEpisodes(count: number): void {
     if (!trainer) return;
     const target = trainer.episode + count;
-    let guard = count * 200 + 1000; // 每集正常只有几步，这只是防死循环的保险丝
+    let guard = count * 2000 + 1000; // 每集步数不定，这只是防死循环的保险丝
     while (trainer.episode < target && guard > 0) {
       advance();
       guard -= 1;
@@ -240,14 +262,15 @@ export function useSimulation() {
     lastEpisodeEnd.value = null;
     episode.value = 0;
     steps.value = 0;
-    ball.value = env.start;
+    knownStates.value = 0;
+    state.value = env.reset();
     revision.value += 1;
   }
 
-  /** 对应右键菜单的 "initialize blue ball's position" */
-  function resetBall(): void {
+  /** 重置当前这一局（找红球里对应右键菜单的 "initialize blue ball's position"） */
+  function resetState(): void {
     if (!trainer) {
-      ball.value = env.start;
+      state.value = env.reset();
       return;
     }
     trainer.resetBall();
@@ -260,39 +283,41 @@ export function useSimulation() {
 
   return reactive({
     env,
-    ball,
+    state,
     runState,
     running,
     hasAgent,
     algorithm,
     episode,
     steps,
+    knownStates,
     speed,
     params,
     seedText,
     seedStatus,
     appliedSeed,
     stepIntervalMs,
-    ballDurationMs,
+    moveDurationMs,
     lastTransition,
     history,
     trail,
     teleported,
     lastEpisodeEnd,
-    tableView,
+    revision,
+    agent,
     start,
     pause,
     resume,
     stepOnce,
     trainEpisodes,
     stop,
-    resetBall,
+    resetState,
   });
 }
 
 /**
  * 界面拿到的仿真接口。
- * 用 reactive 包一层是为了让子组件里 `sim.ball` 这种嵌套访问也能自动解 ref
- * （Vue 只会在模板顶层解 ref，`sim.ball` 不解的话拿到的是 Ref 对象）。
+ * 用 reactive 包一层是为了让子组件里 `sim.state` 这种嵌套访问也能自动解 ref
+ * （Vue 只会在模板顶层解 ref，`sim.state` 不解的话拿到的是 Ref 对象）。
  */
 export type SimulationApi = ReturnType<typeof useSimulation>;
