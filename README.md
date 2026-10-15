@@ -2,8 +2,6 @@
 
 针对具体的小游戏实现了一些强化学习算法，以作学习
 
-使用python 3.x，pyside2 5.15.0
-
 ## Q-Learning
 
 Q-Learning是一种model free，off policy，基于值的学习方法。其主要依赖于一个Q表，记录所有的状态和每个状态对应的策略以及收益。
