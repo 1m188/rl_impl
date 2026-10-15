@@ -1,129 +1,113 @@
 // @vitest-environment happy-dom
-import { mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { nextTick } from 'vue';
+import type { VueWrapper } from '@vue/test-utils';
 
-import App from '../src/App.vue';
-
-/**
- * 界面接线测试：确认"点按钮 → 球真的动起来"这条链路是通的。
- * requestAnimationFrame 换成手动泵，让 50ms 一步的逻辑完全可控、可复现。
- */
-
-let frameQueue: FrameRequestCallback[] = [];
-let clock = 0;
-
-beforeEach(() => {
-  frameQueue = [];
-  clock = 0;
-  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-    frameQueue.push(callback);
-    return frameQueue.length;
-  }) as typeof requestAnimationFrame;
-  globalThis.cancelAnimationFrame = (() => {
-    frameQueue = [];
-  }) as typeof cancelAnimationFrame;
-});
-
-afterEach(() => {
-  frameQueue = [];
-});
-
-/** 推进若干帧（默认 16ms 一帧） */
-function pump(frames: number, deltaMs = 16): void {
-  for (let i = 0; i < frames; i += 1) {
-    clock += deltaMs;
-    const pending = frameQueue;
-    frameQueue = [];
-    for (const callback of pending) callback(clock);
-  }
-}
-
-function button(wrapper: VueWrapper, label: string) {
-  const found = wrapper.findAll('button').find((item) => item.text() === label);
-  if (!found) throw new Error(`找不到按钮：${label}`);
-  return found;
-}
-
-const steps = (wrapper: VueWrapper) => Number(wrapper.get('[data-testid="steps"]').text());
-const ballPosition = (wrapper: VueWrapper) => {
-  const style = wrapper.get('.agent').attributes('style') ?? '';
-  return style;
-};
+import {
+  arrowCount,
+  ballCell,
+  ballStyle,
+  button,
+  click,
+  episodeOf,
+  heatCount,
+  installFrameStub,
+  mountApp,
+  nextTick,
+  pump,
+  pumpUntilBallMoves,
+  stateCountOf,
+  stepsOf,
+  textOf,
+} from './helpers/ui';
 
 let wrapper: VueWrapper | null = null;
+
+beforeEach(() => {
+  installFrameStub();
+});
+
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
 });
 
-describe('界面', () => {
+describe('界面：基本接线', () => {
   it('渲染 4x4 网格、3 个陷阱、1 个终点，球在起点', () => {
-    wrapper = mount(App);
+    wrapper = mountApp();
     expect(wrapper.findAll('.cell')).toHaveLength(16);
     expect(wrapper.findAll('.cell--trap')).toHaveLength(3);
     expect(wrapper.findAll('.goal')).toHaveLength(1);
-    expect(ballPosition(wrapper)).toContain('left: 0%');
-    expect(ballPosition(wrapper)).toContain('top: 0%');
-    expect(wrapper.get('[data-testid="algorithm"]').text()).toBe('未运行');
-    expect(wrapper.get('[data-testid="state-count"]').text()).toBe('0 / 16');
+    expect(ballStyle(wrapper)).toContain('left: 0%');
+    expect(ballStyle(wrapper)).toContain('top: 0%');
+    expect(textOf(wrapper, 'algorithm')).toBe('未运行');
+    expect(textOf(wrapper, 'state-count')).toBe('0 / 16');
+    // 还没开始学，棋盘上不应该有任何叠加信息
+    expect(arrowCount(wrapper)).toBe(0);
+    expect(heatCount(wrapper)).toBe(0);
   });
 
-  it('点 Q-Learning start 之后球会动、步数与回合数会涨', async () => {
-    wrapper = mount(App);
-    const positionBefore = ballPosition(wrapper);
-    await button(wrapper, 'Q-Learning start').trigger('click');
-    expect(wrapper.get('[data-testid="algorithm"]').text()).toBe('Q-Learning');
-    expect(steps(wrapper)).toBe(0);
+  it('点 Q-Learning start 之后球会动、步数与 Q 表都会长', async () => {
+    wrapper = mountApp();
+    const positionBefore = ballStyle(wrapper);
+    await click(wrapper, 'Q-Learning start');
+    expect(textOf(wrapper, 'algorithm')).toBe('Q-Learning');
+    expect(stepsOf(wrapper)).toBe(0);
 
     pump(20); // 20 帧 x 16ms = 320ms，按 50ms 一步应该走了 6 步
     await nextTick();
 
-    expect(steps(wrapper)).toBeGreaterThanOrEqual(5);
-    // 才走了几步，Q 表还不可能覆盖全部 16 个状态，只要它开始长了就说明学习在进行
-    const stateCount = Number(wrapper.get('[data-testid="state-count"]').text().split(' / ')[0]);
-    expect(stateCount).toBeGreaterThan(0);
-    expect(stateCount).toBeLessThanOrEqual(16);
-    expect(ballPosition(wrapper)).not.toBe(positionBefore);
+    expect(stepsOf(wrapper)).toBeGreaterThanOrEqual(5);
+    expect(stateCountOf(wrapper)).toBeGreaterThan(0);
+    expect(ballStyle(wrapper)).not.toBe(positionBefore);
   });
 
   it('球撞到终点或陷阱后会从起点重开一局（回合数 +1）', async () => {
-    wrapper = mount(App);
-    await button(wrapper, 'Q-Learning start').trigger('click');
-
-    pump(200); // 3.2 秒，足够跑完好几集
+    wrapper = mountApp();
+    await click(wrapper, 'Q-Learning start');
+    pump(200);
     await nextTick();
-
-    expect(Number(wrapper.get('[data-testid="episode"]').text())).toBeGreaterThan(0);
-  });
-
-  it('stop 之后不再推进，且按钮变灰；reset 把球送回起点', async () => {
-    wrapper = mount(App);
-    await button(wrapper, 'Q-Learning start').trigger('click');
-    pump(30);
-    await nextTick();
-    const stepsWhenStopped = steps(wrapper);
-
-    await button(wrapper, 'stop').trigger('click');
-    const stopButton = button(wrapper, 'stop');
-    expect((stopButton.element as HTMLButtonElement).disabled).toBe(true);
-
-    pump(60);
-    await nextTick();
-    expect(steps(wrapper)).toBe(stepsWhenStopped);
-
-    await button(wrapper, "initialize blue ball's position").trigger('click');
-    expect(ballPosition(wrapper)).toContain('left: 0%');
-    expect(ballPosition(wrapper)).toContain('top: 0%');
+    expect(episodeOf(wrapper)).toBeGreaterThan(0);
   });
 
   it('Sarsa start 走的是另一套算法（按钮互不干扰）', async () => {
-    wrapper = mount(App);
-    await button(wrapper, 'Sarsa start').trigger('click');
-    expect(wrapper.get('[data-testid="algorithm"]').text()).toBe('Sarsa');
+    wrapper = mountApp();
+    await click(wrapper, 'Sarsa start');
+    expect(textOf(wrapper, 'algorithm')).toBe('Sarsa');
 
     pump(20);
     await nextTick();
-    expect(steps(wrapper)).toBeGreaterThanOrEqual(5);
+    expect(stepsOf(wrapper)).toBeGreaterThanOrEqual(5);
+  });
+
+  it('stop 结束这一轮并清空统计与 Q 表（与原实现一样丢弃学习结果）', async () => {
+    wrapper = mountApp();
+    await click(wrapper, 'Q-Learning start');
+    pump(30);
+    await nextTick();
+    expect(stepsOf(wrapper)).toBeGreaterThan(0);
+
+    await click(wrapper, 'stop');
+    expect((button(wrapper, 'stop').element as HTMLButtonElement).disabled).toBe(true);
+    expect(textOf(wrapper, 'run-state')).toBe('空闲');
+    expect(textOf(wrapper, 'algorithm')).toBe('未运行');
+    expect(stepsOf(wrapper)).toBe(0);
+    expect(episodeOf(wrapper)).toBe(0);
+    expect(stateCountOf(wrapper)).toBe(0);
+    expect(arrowCount(wrapper)).toBe(0);
+    expect(ballStyle(wrapper)).toContain('left: 0%');
+
+    // 停下之后继续泵帧也不该有任何推进
+    pump(60);
+    await nextTick();
+    expect(stepsOf(wrapper)).toBe(0);
+  });
+
+  it('initialize blue ball\'s position 把球送回起点', async () => {
+    wrapper = mountApp();
+    await click(wrapper, 'Q-Learning start');
+    expect(await pumpUntilBallMoves(wrapper)).toBe(true);
+
+    await click(wrapper, "initialize blue ball's position");
+    expect(ballCell(wrapper)).toStrictEqual({ x: 0, y: 0 });
   });
 });

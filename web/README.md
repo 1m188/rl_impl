@@ -10,6 +10,7 @@ npm install
 npm run dev        # 开发服务器
 npm run build      # 类型检查 + 打包
 npm test           # 测试
+npm run golden     # 生成对拍数据
 ```
 
 ## 目录结构
@@ -24,10 +25,14 @@ web/
 │   │   ├── qLearning.ts         # Q-Learning
 │   │   ├── sarsa.ts             # Sarsa
 │   │   ├── rng.ts               # 可注入的随机数来源（Math.random / 种子 LCG）
-│   │   └── trainer.ts           # 回合驱动：终止判定、复位、单步推进
+│   │   ├── trainer.ts           # 回合驱动：终止判定、复位、单步推进、每集记录
+│   │   └── qTableView.ts        # Q 表的只读视图（策略、热力归一化），只读不改
 │   ├── composables/useSimulation.ts   # 把 domain 接到 Vue：固定步长时钟 + 响应式状态
-│   ├── components/Board.vue           # 4x4 网格、陷阱、终点、蓝球
-│   ├── components/ControlPanel.vue    # 原来的四个右键菜单项改成按钮
+│   ├── components/Board.vue           # 4x4 网格、陷阱、终点、蓝球 + 策略箭头与热力叠加
+│   ├── components/ControlPanel.vue    # 原来的四个右键菜单项改成按钮，外加训练控制
+│   ├── components/LearningCurve.vue   # 学习曲线（零依赖 SVG）
+│   ├── components/StepDetail.vue      # 最近一步的 s/a/r/s' 与 Q 值更新
+│   ├── components/QTableViewPanel.vue # Q 表原始数值表
 │   └── App.vue / main.ts / style.css
 ├── tests/                       # vitest
 │   ├── golden/parity.json       # 黄金轨迹
@@ -35,8 +40,11 @@ web/
 │   ├── qlearning.spec.ts        # 公式与 ε-greedy 的单测
 │   ├── sarsa.spec.ts            # 含 on-policy / off-policy 的差异断言
 │   ├── convergence.spec.ts      # 8 个种子 x 两种算法都要学会走安全最短路
-│   └── ui.spec.ts               # 挂载 App，验证"点按钮 → 球动起来"
+│   ├── trainer.spec.ts          # 每集记录 / 单步细节 / 复位
+│   ├── qtableView.spec.ts       # 策略、终止格、热力归一化
+│   ├── ui.spec.ts               # 挂载 App，验证"点按钮 → 球动起来"
+│   └── ui-viz.spec.ts           # 暂停/单步/倍速/快进/种子可复现/叠加层
 └── tools/gen_golden.py          # 生成 tests/golden/parity.json
 ```
 
-分层原则：`domain/` 不依赖 Vue。这样算法能在 node 里跑测试，阶段二加可视化面板时也不用动它。
+分层原则：`domain/` 不依赖 Vue。这样算法能在 node 里跑测试，可视化面板也不会碰到算法。
