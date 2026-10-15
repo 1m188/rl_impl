@@ -5,7 +5,7 @@ import type { VueWrapper } from '@vue/test-utils';
 import {
   arrowCount,
   ballCell,
-  ballStyle,
+  cellLabel,
   button,
   click,
   episodeOf,
@@ -37,8 +37,7 @@ describe('界面：基本接线', () => {
     expect(wrapper.findAll('.cell')).toHaveLength(16);
     expect(wrapper.findAll('.cell--trap')).toHaveLength(3);
     expect(wrapper.findAll('.goal')).toHaveLength(1);
-    expect(ballStyle(wrapper)).toContain('left: 0%');
-    expect(ballStyle(wrapper)).toContain('top: 0%');
+    expect(ballCell(wrapper)).toStrictEqual({ x: 0, y: 0 });
     expect(textOf(wrapper, 'algorithm')).toBe('未运行');
     expect(textOf(wrapper, 'state-count')).toBe('0 / 16');
     // 还没开始学，棋盘上不应该有任何叠加信息
@@ -48,7 +47,7 @@ describe('界面：基本接线', () => {
 
   it('点 Q-Learning start 之后球会动、步数与 Q 表都会长', async () => {
     wrapper = mountApp();
-    const positionBefore = ballStyle(wrapper);
+    const positionBefore = cellLabel(wrapper);
     await click(wrapper, 'Q-Learning start');
     expect(textOf(wrapper, 'algorithm')).toBe('Q-Learning');
     expect(stepsOf(wrapper)).toBe(0);
@@ -58,7 +57,7 @@ describe('界面：基本接线', () => {
 
     expect(stepsOf(wrapper)).toBeGreaterThanOrEqual(5);
     expect(stateCountOf(wrapper)).toBeGreaterThan(0);
-    expect(ballStyle(wrapper)).not.toBe(positionBefore);
+    expect(cellLabel(wrapper)).not.toBe(positionBefore);
   });
 
   it('球撞到终点或陷阱后会从起点重开一局（回合数 +1）', async () => {
@@ -94,7 +93,7 @@ describe('界面：基本接线', () => {
     expect(episodeOf(wrapper)).toBe(0);
     expect(stateCountOf(wrapper)).toBe(0);
     expect(arrowCount(wrapper)).toBe(0);
-    expect(ballStyle(wrapper)).toContain('left: 0%');
+    expect(ballCell(wrapper)).toStrictEqual({ x: 0, y: 0 });
 
     // 停下之后继续泵帧也不该有任何推进
     pump(60);

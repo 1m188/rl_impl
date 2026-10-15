@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { ACTION_ORDER } from '../domain/actions';
 import type { FindBallEnv } from '../domain/env';
 import type { QTableView } from '../domain/qTableView';
+import { heatRgba } from '../ui/heat';
 
 const props = defineProps<{
   view: QTableView;
@@ -19,13 +20,27 @@ const rows = computed(() =>
 );
 
 const num = (value: number | undefined) => (value === undefined ? '—' : value.toFixed(3));
+
+/** 单元格底色也按数值深浅来，表格本身就成了一张热力图 */
+function tint(value: number | undefined): Record<string, string> {
+  if (value === undefined) return {};
+  return { background: heatRgba(value, props.view.min, props.view.max, 0.04, 0.3) };
+}
+
+const rangeLabel = computed(() => {
+  if (props.view.knownCount === 0) return '还没有数据';
+  return `取值 ${props.view.min.toFixed(2)} ~ ${props.view.max.toFixed(2)}`;
+});
 </script>
 
 <template>
-  <details class="qtable">
+  <details class="card qtable" :style="{ '--i': 4 }">
     <summary>
-      Q 表原始数值（{{ view.knownCount }} / {{ view.stateCount }} 个状态已知，
-      取值 {{ view.knownCount ? `${view.min.toFixed(2)} ~ ${view.max.toFixed(2)}` : '—' }}）
+      <span class="card__title">Q 表原始数值</span>
+      <span class="summary__meta num">
+        {{ view.knownCount }} / {{ view.stateCount }} 个状态 · {{ rangeLabel }}
+      </span>
+      <span class="chev">›</span>
     </summary>
 
     <div class="scroll">
@@ -46,6 +61,7 @@ const num = (value: number | undefined) => (value === undefined ? '—' : value.
             <td
               v-for="action in ACTION_ORDER"
               :key="action"
+              :style="tint(row.values[action])"
               :class="{ best: row.policy === action && !row.terminal }"
             >
               {{ num(row.values[action]) }}
@@ -60,72 +76,108 @@ const num = (value: number | undefined) => (value === undefined ? '—' : value.
 
 <style scoped>
 .qtable {
-  padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #e2e2e2;
-  border-radius: 10px;
   font-size: 12px;
 }
 
 summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   cursor: pointer;
-  color: #4a4a4a;
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary__meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chev {
+  display: inline-block;
+  color: var(--text-dim);
+  font-size: 16px;
+  transform: rotate(90deg);
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.qtable[open] .chev {
+  transform: rotate(-90deg);
 }
 
 .scroll {
   max-height: 320px;
   overflow: auto;
-  margin-top: 10px;
+  margin-top: 14px;
+  border-radius: 10px;
 }
 
 table {
   border-collapse: collapse;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   width: 100%;
 }
 
 th,
 td {
-  padding: 3px 8px;
+  padding: 4px 9px;
   text-align: right;
-  border-bottom: 1px solid #f0f0f0;
   white-space: nowrap;
+  transition: background var(--dur) var(--ease-out);
 }
 
 thead th {
   position: sticky;
   top: 0;
-  background: #fff;
-  color: #6b6b6b;
+  z-index: 1;
+  background: #10151d;
+  color: var(--text-dim);
   font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 tbody th {
   text-align: left;
   font-weight: 500;
-  color: #333;
+  color: var(--text-muted);
 }
 
 td.best {
   font-weight: 700;
-  color: #1a4fd6;
-  background: #eef3ff;
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35);
 }
 
 td.policy {
-  color: #6b4a00;
+  color: var(--violet);
 }
 
-.row--terminal td {
-  color: #b0b0b0;
+.row--terminal td,
+.row--terminal th {
+  color: var(--text-dim);
 }
 
 .badge {
-  margin-left: 4px;
-  padding: 0 4px;
+  margin-left: 5px;
+  padding: 0 5px;
   font-size: 10px;
-  color: #fff;
-  background: #9a9a9a;
-  border-radius: 3px;
+  font-family: var(--font);
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
 }
 </style>

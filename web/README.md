@@ -27,10 +27,11 @@ web/
 │   │   ├── rng.ts               # 可注入的随机数来源（Math.random / 种子 LCG）
 │   │   ├── trainer.ts           # 回合驱动：终止判定、复位、单步推进、每集记录
 │   │   └── qTableView.ts        # Q 表的只读视图（策略、热力归一化），只读不改
+│   ├── ui/heat.ts               # 热力配色（棋盘与 Q 表数值表共用）
 │   ├── composables/useSimulation.ts   # 把 domain 接到 Vue：固定步长时钟 + 响应式状态
 │   ├── components/Board.vue           # 4x4 网格、陷阱、终点、蓝球 + 策略箭头与热力叠加
 │   ├── components/ControlPanel.vue    # 原来的四个右键菜单项改成按钮，外加训练控制
-│   ├── components/LearningCurve.vue   # 学习曲线（零依赖 SVG）
+│   ├── components/LearningCurve.vue   # 学习曲线（零依赖 SVG，带十字准线读数）
 │   ├── components/StepDetail.vue      # 最近一步的 s/a/r/s' 与 Q 值更新
 │   ├── components/QTableViewPanel.vue # Q 表原始数值表
 │   └── App.vue / main.ts / style.css
@@ -43,7 +44,7 @@ web/
 │   ├── trainer.spec.ts          # 每集记录 / 单步细节 / 复位
 │   ├── qtableView.spec.ts       # 策略、终止格、热力归一化
 │   ├── ui.spec.ts               # 挂载 App，验证"点按钮 → 球动起来"
-│   └── ui-viz.spec.ts           # 暂停/单步/倍速/快进/种子可复现/叠加层
+│   └── ui-viz.spec.ts           # 暂停/单步/倍速/快进/种子可复现/叠加层/命中反馈
 └── tools/gen_golden.py          # 生成 tests/golden/parity.json
 ```
 

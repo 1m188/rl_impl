@@ -7,14 +7,21 @@ const props = defineProps<{ history: EpisodeRecord[] }>();
 
 type Metric = 'steps' | 'reward';
 
+const METRICS: ReadonlyArray<{ value: Metric; label: string }> = [
+  { value: 'steps', label: '每集步数' },
+  { value: 'reward', label: '每集累计收益' },
+];
+
 const metric = ref<Metric>('steps');
+const hoverIndex = ref<number | null>(null);
+
 /** 滑动平均的窗口：单集的抖动很大，平均值才看得出趋势 */
 const AVERAGE_WINDOW = 20;
 
-const WIDTH = 620;
-const HEIGHT = 170;
-const PAD_X = 40;
-const PAD_Y = 16;
+const WIDTH = 640;
+const HEIGHT = 190;
+const PAD_X = 44;
+const PAD_Y = 18;
 
 const series = computed(() =>
   props.history.map((record) => (metric.value === 'steps' ? record.steps : record.reward)),
@@ -41,7 +48,15 @@ function yOf(value: number): number {
   return HEIGHT - PAD_Y - ((value - min) / (max - min)) * (HEIGHT - PAD_Y * 2);
 }
 
-function toPath(values: readonly number[]): string {
+const average = computed(() =>
+  series.value.map((_, index) => {
+    const from = Math.max(0, index - AVERAGE_WINDOW + 1);
+    const window = series.value.slice(from, index + 1);
+    return window.reduce((sum, value) => sum + value, 0) / window.length;
+  }),
+);
+
+function linePath(values: readonly number[]): string {
   return values
     .map((value, index) => {
       const x = xOf(index, values.length);
@@ -51,18 +66,20 @@ function toPath(values: readonly number[]): string {
     .join(' ');
 }
 
-const rawPath = computed(() => toPath(series.value));
+const rawPath = computed(() => linePath(series.value));
+const averagePath = computed(() => linePath(average.value));
 
-/** 滑动平均：i 处取 [i-19, i] 的平均（只看窗口内的数据，不跨越开始处） */
-const averagePath = computed(() =>
-  toPath(
-    series.value.map((_, index) => {
-      const from = Math.max(0, index - AVERAGE_WINDOW + 1);
-      const window = series.value.slice(from, index + 1);
-      return window.reduce((sum, value) => sum + value, 0) / window.length;
-    }),
-  ),
-);
+/** 平均线下方填一层渐变，让曲线有"体量" */
+const areaPath = computed(() => {
+  const values = average.value;
+  if (values.length === 0) return '';
+  const base = HEIGHT - PAD_Y;
+  const points = values.map((value, index) => [xOf(index, values.length), yOf(value)] as const);
+  const line = points.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const first = points[0];
+  const last = points[points.length - 1];
+  return `M${first[0].toFixed(1)},${base} ${line} L${last[0].toFixed(1)},${base} Z`;
+});
 
 const yTicks = computed(() =>
   [bounds.value.max, (bounds.value.min + bounds.value.max) / 2, bounds.value.min].map((value) => ({
@@ -90,36 +107,91 @@ const recent = computed(() => {
   const goals = window.filter((r) => r.end === 'goal').length;
   return { count: window.length, steps, reward, goals };
 });
+
+const metricIndex = computed(() => METRICS.findIndex((item) => item.value === metric.value));
+
+/** 鼠标在图上移动时，找出最近的那一集 */
+function onMove(event: MouseEvent): void {
+  const svg = event.currentTarget as SVGSVGElement;
+  const rect = svg.getBoundingClientRect();
+  const count = series.value.length;
+  if (rect.width === 0 || count === 0) return;
+  if (count === 1) {
+    hoverIndex.value = 0;
+    return;
+  }
+  const x = ((event.clientX - rect.left) / rect.width) * WIDTH;
+  const ratio = (x - PAD_X) / (WIDTH - PAD_X * 2);
+  hoverIndex.value = Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1))));
+}
+
+const hovered = computed(() => {
+  const index = hoverIndex.value;
+  if (index === null || index >= series.value.length) return null;
+  const value = series.value[index];
+  const avg = average.value[index];
+  const record = props.history[index];
+  const x = xOf(index, series.value.length);
+  const flip = x > WIDTH * 0.72;
+  return {
+    x,
+    y: yOf(value),
+    value,
+    average: avg,
+    episode: record.index,
+    end: record.end,
+    anchor: flip ? 'end' : 'start',
+    labelX: flip ? x - 10 : x + 10,
+  };
+});
 </script>
 
 <template>
-  <section class="curve">
-    <header class="curve__header">
-      <h2>学习曲线</h2>
-      <div class="curve__controls">
+  <section class="card curve" :style="{ '--i': 2 }">
+    <header class="card__head">
+      <h2 class="card__title">学习曲线</h2>
+      <div class="seg" :style="{ '--count': METRICS.length, '--index': metricIndex }">
+        <span class="seg__thumb" />
         <button
+          v-for="item in METRICS"
+          :key="item.value"
           type="button"
-          :class="{ active: metric === 'steps' }"
-          @click="metric = 'steps'"
+          class="seg__item"
+          :class="{ active: metric === item.value }"
+          @click="metric = item.value"
         >
-          每集步数
-        </button>
-        <button
-          type="button"
-          :class="{ active: metric === 'reward' }"
-          @click="metric = 'reward'"
-        >
-          每集累计收益
+          {{ item.label }}
         </button>
       </div>
     </header>
 
-    <p v-if="history.length === 0" class="curve__empty">
+    <p v-if="history.length === 0" class="empty">
       还没有跑完一集。点 start 开始，或用"快进训练"直接跑几百集看收敛。
     </p>
 
     <template v-else>
-      <svg :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" class="curve__svg" role="img" aria-label="学习曲线">
+      <svg
+        :viewBox="`0 0 ${WIDTH} ${HEIGHT}`"
+        class="chart"
+        role="img"
+        aria-label="学习曲线"
+        @mousemove="onMove"
+        @mouseleave="hoverIndex = null"
+      >
+        <defs>
+          <linearGradient id="curve-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(34, 211, 238, 0.38)" />
+            <stop offset="100%" stop-color="rgba(34, 211, 238, 0)" />
+          </linearGradient>
+          <filter id="curve-glow" x="-20%" y="-40%" width="140%" height="180%">
+            <feGaussianBlur stdDeviation="3.2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
         <line
           v-for="tick in yTicks"
           :key="`t-${tick.value}`"
@@ -132,15 +204,31 @@ const recent = computed(() => {
         <text
           v-for="tick in yTicks"
           :key="`l-${tick.value}`"
-          :x="PAD_X - 6"
+          :x="PAD_X - 8"
           :y="tick.y + 4"
           class="axis"
           text-anchor="end"
         >
           {{ formatTick(tick.value) }}
         </text>
+
+        <path :d="areaPath" class="area" />
         <path :d="rawPath" class="raw" />
-        <path :d="averagePath" class="average" />
+        <path :key="metric" :d="averagePath" class="average" />
+
+        <template v-if="hovered">
+          <line :x1="hovered.x" :x2="hovered.x" :y1="PAD_Y" :y2="HEIGHT - PAD_Y" class="crosshair" />
+          <circle :cx="hovered.x" :cy="hovered.y" r="4" class="dot" />
+          <text
+            :x="hovered.labelX"
+            :y="Math.max(14, hovered.y - 10)"
+            class="readout"
+            :text-anchor="hovered.anchor"
+          >
+            第 {{ hovered.episode }} 集 · {{ metric === 'steps' ? `${hovered.value} 步` : hovered.value.toFixed(1) }}
+            · 均值 {{ hovered.average.toFixed(1) }} · {{ hovered.end === 'goal' ? '到终点' : '踩陷阱' }}
+          </text>
+        </template>
       </svg>
 
       <p class="curve__meta">
@@ -159,87 +247,90 @@ const recent = computed(() => {
 .curve {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  background: #fff;
-  border: 1px solid #e2e2e2;
-  border-radius: 10px;
 }
 
-.curve__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-h2 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.curve__controls {
-  display: flex;
-  gap: 6px;
-}
-
-.curve__controls button {
-  padding: 4px 10px;
-  font: inherit;
+.empty {
+  padding: 28px 0;
+  text-align: center;
   font-size: 12px;
-  color: #1b1b1b;
-  background: #f4f4f4;
-  border: 1px solid #c9c9c9;
-  border-radius: 999px;
-  cursor: pointer;
+  color: var(--text-dim);
 }
 
-.curve__controls button.active {
-  color: #fff;
-  background: #1a4fd6;
-  border-color: #1a4fd6;
-}
-
-.curve__svg {
+.chart {
   width: 100%;
   height: auto;
   display: block;
+  border-radius: 10px;
+  background: radial-gradient(120% 120% at 50% 0%, rgba(34, 211, 238, 0.06), transparent 70%);
 }
 
 .grid {
-  stroke: #ececec;
+  stroke: rgba(255, 255, 255, 0.07);
   stroke-width: 1;
+  stroke-dasharray: 3 5;
 }
 
 .axis {
-  fill: #8a8a8a;
+  fill: var(--text-dim);
   font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.area {
+  fill: url(#curve-area);
 }
 
 .raw {
   fill: none;
-  stroke: #b9cdf5;
-  stroke-width: 1.2;
+  stroke: rgba(148, 163, 184, 0.5);
+  stroke-width: 1.1;
 }
 
 .average {
   fill: none;
-  stroke: #1a4fd6;
-  stroke-width: 2;
+  stroke: var(--accent);
+  stroke-width: 2.2;
   stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: url(#curve-glow);
+  animation: draw 900ms var(--ease-out) both;
 }
 
-.curve__empty,
-.curve__meta {
-  margin: 0;
-  font-size: 12px;
-  color: #6b6b6b;
+@keyframes draw {
+  from {
+    stroke-dasharray: 2400;
+    stroke-dashoffset: 2400;
+  }
+  to {
+    stroke-dasharray: 2400;
+    stroke-dashoffset: 0;
+  }
+}
+
+.crosshair {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.dot {
+  fill: var(--accent);
+  stroke: #04121a;
+  stroke-width: 1.5;
+}
+
+.readout {
+  fill: var(--text);
+  font-size: 11px;
+  font-family: var(--font-mono);
 }
 
 .curve__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
 }
 </style>

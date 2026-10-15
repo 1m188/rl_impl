@@ -4,7 +4,7 @@ import type { VueWrapper } from '@vue/test-utils';
 
 import {
   arrowCount,
-  ballStyle,
+  cellLabel,
   click,
   episodeOf,
   heatCount,
@@ -15,6 +15,7 @@ import {
   stateCountOf,
   stepsOf,
   textOf,
+  trailCount,
 } from './helpers/ui';
 
 let wrapper: VueWrapper | null = null;
@@ -132,7 +133,7 @@ describe('界面：可视化与训练控制', () => {
       for (let i = 0; i < 120; i += 1) {
         pump(1, 100); // 每帧 100ms -> 每帧走 2 步
         await nextTick();
-        positions.push(ballStyle(app));
+        positions.push(cellLabel(app));
       }
       const summary = `${stepsOf(app)}/${episodeOf(app)}/${stateCountOf(app)}`;
       app.unmount();
@@ -166,6 +167,50 @@ describe('界面：可视化与训练控制', () => {
     expect(wrapper.findAll('.qtable td.best').length).toBeGreaterThanOrEqual(12);
     // 终点与陷阱那几行的"最优"列应该是空的
     expect(wrapper.findAll('.qtable td.policy').filter((td) => td.text() === '—').length).toBe(4);
+  });
+
+  it('球走过之后留下轨迹残影，stop 时清空', async () => {
+    wrapper = mountApp();
+    expect(trailCount(wrapper)).toBe(0);
+
+    await click(wrapper, 'Q-Learning start');
+    pump(8); // 约 1-2 步，不会刚好赶上换局
+    await nextTick();
+    expect(trailCount(wrapper)).toBeGreaterThan(0);
+
+    await click(wrapper, 'stop');
+    expect(trailCount(wrapper)).toBe(0);
+  });
+
+  it('一集结束时会在终点或陷阱上留下命中标记（只标记刚结束的那一格）', async () => {
+    wrapper = mountApp();
+    await click(wrapper, 'Q-Learning start');
+    pump(200);
+    await nextTick();
+    expect(episodeOf(wrapper)).toBeGreaterThan(0);
+
+    const marks = wrapper.findAll('.ring').length + wrapper.findAll('.trap--hit').length;
+    expect(marks).toBe(1);
+  });
+
+  it('鼠标移到格子上会显示该格的四个动作价值', async () => {
+    wrapper = mountApp();
+    await click(wrapper, 'Q-Learning start');
+    await click(wrapper, '快进 100 集');
+
+    expect(wrapper.get('.inspect').text()).toContain('把鼠标移');
+
+    const cells = wrapper.findAll('.cell');
+    await cells[0].trigger('mouseenter'); // 行优先，index 0 = (0,0)
+    await nextTick();
+    const readout = wrapper.get('.inspect').text();
+    expect(readout).toContain('(0, 0)');
+    expect(readout).toContain('下'); // 四个动作的中文标签
+    expect(readout).toContain('右');
+
+    await cells[5].trigger('mouseenter'); // index 5 = (1,1)，是陷阱
+    await nextTick();
+    expect(wrapper.get('.inspect').text()).toContain('陷阱');
   });
 
   it('单步细节面板会显示最近一步的 s/a/r/s\' 与 Q 值变化', async () => {

@@ -14,6 +14,10 @@ export interface TickResult {
   steps: number;
   /** type === 'step' 时存在，便于界面/测试查看这一步到底做了什么 */
   transition?: StepResult;
+  /** type === 'episode-end' 时存在：球停在哪个终止格上（界面拿它播命中动画） */
+  endedAt?: State;
+  /** type === 'episode-end' 时存在：是到终点还是踩了陷阱 */
+  endReason?: 'goal' | 'trap';
 }
 
 /** 一集结束时的记录，供学习曲线与统计使用（纯粹是观测数据，不参与算法） */
@@ -88,11 +92,20 @@ export class Trainer {
 
   tick(): TickResult {
     if (this.env.isTerminal(this.state)) {
-      this.recordEpisode(this.state === this.env.goal ? 'goal' : 'trap');
+      const endedAt = this.state;
+      const endReason = endedAt === this.env.goal ? 'goal' : 'trap';
+      this.recordEpisode(endReason);
       this.state = this.env.start;
       this.episode += 1;
       this.agent.reset(this.state, this.env);
-      return { type: 'episode-end', state: this.state, episode: this.episode, steps: this.steps };
+      return {
+        type: 'episode-end',
+        state: this.state,
+        episode: this.episode,
+        steps: this.steps,
+        endedAt,
+        endReason,
+      };
     }
 
     const transition = this.agent.step(this.state, this.env);

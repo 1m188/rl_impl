@@ -28,6 +28,8 @@ const BASE_STEP_INTERVAL_MS = 50;
 const MAX_CATCH_UP_STEPS = 40;
 /** 学习曲线与统计只看最近这些集，避免把几万条记录都塞进响应式数据 */
 const HISTORY_WINDOW = 600;
+/** 球的轨迹残影保留几个点 */
+const TRAIL_LENGTH = 6;
 
 export const SPEEDS = [0.5, 1, 2, 5, 20] as const;
 export type Speed = (typeof SPEEDS)[number];
@@ -53,6 +55,12 @@ export function useSimulation() {
   const appliedSeed = ref<number | null>(null);
   const lastTransition = ref<StepResult | null>(null);
   const history = ref<EpisodeRecord[]>([]);
+  /** 球刚走过的几个格子（最新的在前），用来画轨迹残影 */
+  const trail = ref<State[]>([]);
+  /** 刚发生"换局瞬移"：这一步球是直接闪回起点，不该滑过去 */
+  const teleported = ref(false);
+  /** 最近一次一集结束的位置与原因，key 就是回合数（用于让命中动画重新播放） */
+  const lastEpisodeEnd = ref<{ key: number; state: State; reason: 'goal' | 'trap' } | null>(null);
   /** 每 tick 递增，用来驱动 Q 表视图重算（Q 表本身不放进深层响应式） */
   const revision = ref(0);
 
@@ -67,6 +75,14 @@ export function useSimulation() {
   let accumulator = 0;
 
   const stepIntervalMs = computed(() => BASE_STEP_INTERVAL_MS / speed.value);
+
+  /**
+   * 球的滑行时长：略短于一步的间隔，这样每步之间能滑过去又不至于"追不上"下一步。
+   * 20x 时只有 2ms，实际上就是瞬移 —— 本来也看不清。
+   */
+  const ballDurationMs = computed(() =>
+    Math.round(Math.min(Math.max(stepIntervalMs.value * 0.85, 0), 150)),
+  );
 
   const tableView = computed<QTableView>(() => {
     revision.value; // 依赖：每个 tick 都变，保证 Q 表更新后重新摊平
@@ -97,6 +113,35 @@ export function useSimulation() {
     revision.value += 1;
   }
 
+  /**
+   * 推进一个 tick，并把"给动画看的东西"一起更新：
+   * 走一步就延长轨迹残影，一集结束就记下终点/陷阱位置、清空残影、并标记这一次是瞬移。
+   *
+   * 残影按"最新在前"存，界面上就能用固定的下标当 key，元素被复用而不是每步重建，
+   * CSS 过渡才连得上。
+   */
+  function advance(): void {
+    if (!trainer) return;
+    teleported.value = false;
+    const tick = trainer.tick();
+
+    if (tick.type === 'episode-end') {
+      trail.value = [];
+      teleported.value = true;
+      if (tick.endedAt !== undefined && tick.endReason) {
+        lastEpisodeEnd.value = {
+          key: tick.episode,
+          state: tick.endedAt,
+          reason: tick.endReason,
+        };
+      }
+    } else if (trail.value[0] !== tick.state) {
+      trail.value = [tick.state, ...trail.value].slice(0, TRAIL_LENGTH);
+    }
+
+    snapshot();
+  }
+
   function frame(timestamp: number): void {
     if (runState.value !== 'running' || !trainer) return;
     if (lastTimestamp === 0) lastTimestamp = timestamp;
@@ -107,8 +152,7 @@ export function useSimulation() {
     while (accumulator >= stepIntervalMs.value && budget > 0) {
       accumulator -= stepIntervalMs.value;
       budget -= 1;
-      trainer.tick();
-      snapshot();
+      advance();
     }
     if (budget === 0) accumulator = 0;
 
@@ -161,8 +205,7 @@ export function useSimulation() {
   /** 单步：只在暂停时可用，走一步（原实现没有这个能力，属于新增） */
   function stepOnce(): void {
     if (runState.value !== 'paused' || !trainer) return;
-    trainer.tick();
-    snapshot();
+    advance();
   }
 
   /** 快进训练：不等渲染，直接把 n 集跑完（高速看 Q 表收敛用） */
@@ -171,7 +214,7 @@ export function useSimulation() {
     const target = trainer.episode + count;
     let guard = count * 200 + 1000; // 每集正常只有几步，这只是防死循环的保险丝
     while (trainer.episode < target && guard > 0) {
-      trainer.tick();
+      advance();
       guard -= 1;
     }
     snapshot();
@@ -192,6 +235,9 @@ export function useSimulation() {
     appliedSeed.value = null;
     lastTransition.value = null;
     history.value = [];
+    trail.value = [];
+    teleported.value = false;
+    lastEpisodeEnd.value = null;
     episode.value = 0;
     steps.value = 0;
     ball.value = env.start;
@@ -227,8 +273,12 @@ export function useSimulation() {
     seedStatus,
     appliedSeed,
     stepIntervalMs,
+    ballDurationMs,
     lastTransition,
     history,
+    trail,
+    teleported,
+    lastEpisodeEnd,
     tableView,
     start,
     pause,
